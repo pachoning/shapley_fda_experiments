@@ -1,1 +1,3 @@
+maths
+numpy
 scikit-fda
