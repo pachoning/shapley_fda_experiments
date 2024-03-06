@@ -11,7 +11,6 @@ class ShapleyFda:
             target,
             domain_range,
             verbose,
-            debug
         ):
         self.predict_fn = predict_fn
         self.X = X
@@ -20,7 +19,6 @@ class ShapleyFda:
         self.target = target
         self.domain_range = domain_range
         self.verbose = verbose
-        self.debug = debug
 
     def validations(self, num_intervals, set_intervals):
         pass
@@ -63,14 +61,7 @@ class ShapleyFda:
         return set_permutations
 
     def fn_real(self):
-        def inner_debug_fn_real(set_abscissa_points):
-            set_abscissa_points = self.to_numpy(set_abscissa_points)
-            f_points = np.full(shape=(self.X.shape[0], set_abscissa_points.shape[0]), fill_value=-1)
-            return f_points
-        fn_to_return = self.compute_f
-        if self.debug:
-            fn_to_return = inner_debug_fn_real
-        return fn_to_return
+        return self.compute_f
 
     def fn_constant(self):
         def inner_fn_constant(set_abscissa_points):
@@ -79,14 +70,7 @@ class ShapleyFda:
             vector_ones = np.ones(shape=(1, set_abscissa_points.shape[0]))
             f_points = np.dot(mean_val, vector_ones)
             return f_points
-        def inner_debug_fn_constant(set_abscissa_points):
-            set_abscissa_points = self.to_numpy(set_abscissa_points)
-            values = np.full(shape=(self.X.shape[0], set_abscissa_points.shape[0]), fill_value=0)
-            return values
-        fn_to_return = inner_fn_constant
-        if self.debug:
-            fn_to_return = inner_debug_fn_constant
-        return fn_to_return
+        return inner_fn_constant
 
     def fn_linear(self, abscissa):
         f_abscissa = self.compute_f(abscissa)
@@ -97,14 +81,7 @@ class ShapleyFda:
             set_abscissa_points = self.to_numpy(set_abscissa_points)
             values = np.add(beta_0, np.multiply(beta_1, set_abscissa_points))
             return values
-        def inner_debug_fn_linear(set_abscissa_points):
-            set_abscissa_points = self.to_numpy(set_abscissa_points)
-            values = np.full(shape=(self.X.shape[0], set_abscissa_points.shape[0]), fill_value=1)
-            return values
-        fn_to_return = inner_fn_linear
-        if self.debug:
-            fn_to_return = inner_debug_fn_linear
-        return fn_to_return
+        return inner_fn_linear
 
     def fn_cubic(self, abscissa_ini, abscissa_end):
         f_abscissa_ini = self.compute_f(abscissa_ini)
@@ -127,14 +104,7 @@ class ShapleyFda:
             ))
             values = np.matmul(beta_values, polynomials)
             return values
-        def inner_debug_fn_cubic(set_abscissa_points):
-            set_abscissa_points = self.to_numpy(set_abscissa_points)
-            values = np.full(shape=(self.X.shape[0], set_abscissa_points.shape[0]), fill_value=3)
-            return values
-        fn_to_return = inner_fn_cubic
-        if self.debug:
-            fn_to_return = inner_debug_fn_cubic
-        return fn_to_return
+        return inner_fn_cubic
 
     def break_permutation(self, permutation, global_interval_position, use_interval):
         interval_position_inside_permutation = np.argwhere(global_interval_position == permutation).squeeze()
@@ -381,8 +351,6 @@ class ShapleyFda:
         self.print("abcissa:", self.abscissa_points, " ", "abcissa_interval:", mapping_abcissa_interval)
         # For each interval, compute the relevance
         intervals_relevance = []
-        if self.debug:
-            num_intervals = 1
         for i_interval in range(num_intervals):
             interval = set_intervals[i_interval]
             self.print("Computing relevance for interval:", interval, "whose index is", i_interval)
