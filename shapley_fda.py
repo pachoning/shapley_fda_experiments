@@ -6,7 +6,7 @@ class ShapleyFda:
             self,
             predict_fn,
             X,
-            derivate_X,
+            derivative_X,
             abscissa_points,
             target,
             domain_range,
@@ -14,7 +14,7 @@ class ShapleyFda:
         ):
         self.predict_fn = predict_fn
         self.X = X
-        self.derivate_X = derivate_X
+        self.derivative_X = derivative_X
         self.abscissa_points = abscissa_points
         self.target = target
         self.domain_range = domain_range
@@ -310,7 +310,7 @@ class ShapleyFda:
         return self.compute_function_from_matrix(set_abscissa_points, self.X)
     
     def compute_derivative_f(self, set_abscissa_points):
-        return self.compute_function_from_matrix(set_abscissa_points, self.derivate_X)
+        return self.compute_function_from_matrix(set_abscissa_points, self.derivative_X)
 
     def compute_f_set_intervals(self, set_intervals):
         set_intervals_shape = set_intervals.shape
