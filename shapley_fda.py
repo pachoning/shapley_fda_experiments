@@ -301,7 +301,7 @@ class ShapleyFda:
                 w_max = 1 - (num_max - point)/(num_max - num_min)
                 f_min = matrix[:, min_position]
                 f_max = matrix[:, max_position]
-                f_eval_point = w_min * f_min + w_max * f_max
+                f_eval_point = np.add(np.multiply(w_min, f_min), np.multiply(w_max, f_max))
                 f_points[:, i_point] = f_eval_point
             i_point += 1
         return f_points
