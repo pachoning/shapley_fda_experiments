@@ -36,9 +36,12 @@ class ShapleyFda:
             ini_domain_range = self.domain_range[0]
             end_domain_range = self.domain_range[1]
             long_domain_range = end_domain_range - ini_domain_range
-            h = (long_domain_range)/num_intervals
-            intervals_lower_bound = np.arange(ini_domain_range, end_domain_range, h)
-            intervals_upper_bound = np.arange(ini_domain_range + h, end_domain_range + h, h)
+            intervals_lower_bound = np.array(
+                [ini_domain_range + i * long_domain_range/num_intervals for i in range(num_intervals)]
+            )
+            intervals_upper_bound = np.array(
+                [ini_domain_range + (i + 1) * long_domain_range/num_intervals for i in range(num_intervals)]
+            )
             intervals = np.stack((intervals_lower_bound, intervals_upper_bound), axis=1)
         elif intervals:
             # TODO: if the user provides intervals, standardise it so that
@@ -236,7 +239,7 @@ class ShapleyFda:
         prediction = self.predict_fn(covariate)
         diff_target_pred = np.subtract(target, prediction)
         diff_target_pred_sq = np.power(diff_target_pred, 2)
-        rss = np.sum(diff_target_pred_sq)
+        mse = np.mean(diff_target_pred_sq)
         #target_mean = np.mean(target)
         #diff_target_target_mean = np.subtract(target, target_mean)
         #diff_target_target_mean_sq = np.power(diff_target_target_mean, 2)
@@ -244,7 +247,7 @@ class ShapleyFda:
         #self.print("\t\t\trss:", rss)
         #self.print("\t\t\ttss:", tss)
         #r2 = 1 - rss/tss
-        return rss
+        return mse
 
     def compute_interval_relevance(self, set_intervals, set_permutations, mapping_abcissa_interval, interval_position):
         set_differences = []
