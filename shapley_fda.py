@@ -145,11 +145,11 @@ class ShapleyFda:
                 list_to_return[label_position] = self.fn_constant()
             # else the first interval is included but the last one is not included, buil a linear interpolation
             elif is_first_interval_included and not is_last_interval_included:
-                self.print("\t\t\t\tfunction: linear with abcissa:", end)
+                self.print("\t\t\t\tfunction: linear with abscissa:", end)
                 list_to_return[label_position] = self.fn_linear(end)
             # else the first interval is not included but the last one is included, buil a linear interpolation
             elif not is_first_interval_included and is_last_interval_included:
-                self.print("\t\t\t\tfunction: linear with abcissa:", ini)
+                self.print("\t\t\t\tfunction: linear with abscissa:", ini)
                 list_to_return[label_position] = self.fn_linear(ini)
             # In any other case, build a cubic interpolation function
             else:
@@ -183,26 +183,26 @@ class ShapleyFda:
         set_fns = [sorted_set_fns[i] for i in sorting_positions]
         return [(interval, fn) for (interval, fn) in zip(non_available_intervals, set_fns)]
 
-    def map_abcissa_interval(self, set_intervals):
+    def map_abscissa_interval(self, set_intervals):
         set_intervals_shape = set_intervals.shape
         map_object = np.full(shape=self.abscissa_points.shape, fill_value=1, dtype=int)
         num_intervals = set_intervals_shape[0]
         last_end_interval = set_intervals[num_intervals-1, 1]
-        i_abcissa = 0
+        i_abscissa = 0
         for abscissa in self.abscissa_points:
             if(np.abs(abscissa - last_end_interval) < 1e-7):
                 interval_position = num_intervals - 1
             else:
                 interval_position = np.ravel(np.argwhere((abscissa >= set_intervals[:, 0]) & (abscissa < set_intervals[:, 1])))
                 interval_position = interval_position[0]
-            map_object[i_abcissa] = interval_position
-            i_abcissa += 1
+            map_object[i_abscissa] = interval_position
+            i_abscissa += 1
         return map_object
     
     def recompute_covariate(
             self,
             set_intervals,
-            mapping_abcissa_interval,
+            mapping_abscissa_interval,
             global_interval_position,
             permutation,
             use_interval
@@ -225,12 +225,12 @@ class ShapleyFda:
         fun_non_available_intervals = self.map_function_interval(set_intervals, non_available_intervals)
         fun_intervals = [*fun_available_intervals, *fun_non_available_intervals]
         dic_fun_intervals = {interval: funct for (interval, funct) in fun_intervals}
-        # For each abcissa_interval, recompute the covariate
+        # For each abscissa_interval, recompute the covariate
         for interval_permutation in permutation_array:
-            interval_position = np.ravel(np.argwhere(mapping_abcissa_interval == interval_permutation))
-            interval_abcissa = self.abscissa_points[interval_position]
+            interval_position = np.ravel(np.argwhere(mapping_abscissa_interval == interval_permutation))
+            interval_abscissa = self.abscissa_points[interval_position]
             function_to_apply = dic_fun_intervals[interval_permutation]
-            recomputed_values = function_to_apply(interval_abcissa)
+            recomputed_values = function_to_apply(interval_abscissa)
             recomputed_covariate[:, interval_position] = recomputed_values
         self.print("\t\t\trecomputed_covariate:", recomputed_covariate.tolist())
         return recomputed_covariate
@@ -249,7 +249,7 @@ class ShapleyFda:
         #r2 = 1 - rss/tss
         return mse
 
-    def compute_interval_relevance(self, set_intervals, set_permutations, mapping_abcissa_interval, interval_position):
+    def compute_interval_relevance(self, set_intervals, set_permutations, mapping_abscissa_interval, interval_position):
         set_differences = []
         # For each permutation
         for i_permutation in set_permutations:
@@ -257,7 +257,7 @@ class ShapleyFda:
             # Recreate the set of functions without considering the interval
             covariate_no_interval = self.recompute_covariate(
                 set_intervals,
-                mapping_abcissa_interval,
+                mapping_abscissa_interval,
                 interval_position,
                 i_permutation,
                 use_interval = False
@@ -265,7 +265,7 @@ class ShapleyFda:
              # Recreate the set of functions considering the interval
             covariate_interval = self.recompute_covariate(
                 set_intervals,
-                mapping_abcissa_interval,
+                mapping_abscissa_interval,
                 interval_position,
                 i_permutation,
                 use_interval = True
@@ -349,15 +349,15 @@ class ShapleyFda:
         # Get the set of permutations
         set_permutations = self.create_permutations(num_intervals=num_intervals, num_permutations=num_permutations)
         self.print("set_permutations:", set_permutations)
-        # Map each abcissa point with its interval
-        mapping_abcissa_interval = self.map_abcissa_interval(set_intervals)
-        self.print("abcissa:", self.abscissa_points, " ", "abcissa_interval:", mapping_abcissa_interval)
+        # Map each abscissa point with its interval
+        mapping_abscissa_interval = self.map_abscissa_interval(set_intervals)
+        self.print("abscissa:", self.abscissa_points, " ", "abscissa_interval:", mapping_abscissa_interval)
         # For each interval, compute the relevance
         intervals_relevance = []
         for i_interval in range(num_intervals):
             interval = set_intervals[i_interval]
             self.print("Computing relevance for interval:", interval, "whose index is", i_interval)
-            relevance = self.compute_interval_relevance(set_intervals, set_permutations, mapping_abcissa_interval, i_interval)
+            relevance = self.compute_interval_relevance(set_intervals, set_permutations, mapping_abscissa_interval, i_interval)
             result = [interval, relevance]
             intervals_relevance.append(result)
         return intervals_relevance
