@@ -1,20 +1,19 @@
-import numpy as np
 from math import factorial
+import numpy as np
+
 
 class ShapleyFda:
     def __init__(
-            self,
-            predict_fn,
-            X,
-            derivative_X,
-            abscissa_points,
-            target,
-            domain_range,
-            verbose,
-        ):
+        self,
+        predict_fn,
+        X,
+        abscissa_points,
+        target,
+        domain_range,
+        verbose,
+    ):
         self.predict_fn = predict_fn
         self.X = X
-        self.derivative_X = derivative_X
         self.abscissa_points = abscissa_points
         self.target = target
         self.domain_range = domain_range
@@ -23,12 +22,45 @@ class ShapleyFda:
     def validations(self, num_intervals, set_intervals):
         pass
 
+    def print(self, *args):
+        if self.verbose:
+            str_print = ""
+            for arg in args:
+                str_print = str_print + " " + str(arg)
+            print(str_print)
+
     def to_numpy(self, obj):
         obj_np = obj
         if isinstance(obj, int) or isinstance(obj, float):
             obj_np = np.array([obj])
         return obj_np
-        
+
+    def compute_function_from_matrix(self, set_abscissa_points, matrix):
+        set_abscissa_points = self.to_numpy(set_abscissa_points)
+        i_point = 0
+        f_points = np.empty(shape=(matrix.shape[0], set_abscissa_points.shape[0]))
+        for point in set_abscissa_points:
+            if (point < self.domain_range[0] or point > self.domain_range[1]):
+                raise ValueError("points contains a point outside the domain range (domain_range)")
+            min_position = np.max(np.argwhere(point >= self.abscissa_points))
+            num_min = self.abscissa_points[min_position]
+            if (np.abs(num_min - point) < 1e-7):
+                f_points[:, i_point] = matrix[:, min_position]
+            else:
+                max_position = np.min(np.argwhere(point < self.abscissa_points))
+                num_max = self.abscissa_points[max_position]
+                w_min = 1 - (point - num_min)/(num_max - num_min)
+                w_max = 1 - (num_max - point)/(num_max - num_min)
+                f_min = matrix[:, min_position]
+                f_max = matrix[:, max_position]
+                f_eval_point = np.add(np.multiply(w_min, f_min), np.multiply(w_max, f_max))
+                f_points[:, i_point] = f_eval_point
+            i_point += 1
+        return f_points
+
+    def compute_f(self, set_abscissa_points):
+        return self.compute_function_from_matrix(set_abscissa_points, self.X)
+
     def create_set_intervals(self, num_intervals, intervals):
         if num_intervals is None and intervals is None:
             raise ValueError("Either num_intervals or intervals must not be None")
@@ -63,52 +95,6 @@ class ShapleyFda:
             total_set_permutations = len(set_permutations)
         return set_permutations
 
-    def fn_real(self):
-        return self.compute_f
-
-    def fn_constant(self):
-        def inner_fn_constant(set_abscissa_points):
-            set_abscissa_points = self.to_numpy(set_abscissa_points)
-            mean_val = np.mean(self.X, axis=1, keepdims=True)
-            vector_ones = np.ones(shape=(1, set_abscissa_points.shape[0]))
-            f_points = np.dot(mean_val, vector_ones)
-            return f_points
-        return inner_fn_constant
-
-    def fn_linear(self, abscissa):
-        f_abscissa = self.compute_f(abscissa)
-        derivative_f_abscissa = self.compute_derivative_f(abscissa)
-        beta_0 = np.subtract(f_abscissa, np.multiply(abscissa, derivative_f_abscissa))
-        beta_1 = derivative_f_abscissa.copy()
-        def inner_fn_linear(set_abscissa_points):
-            set_abscissa_points = self.to_numpy(set_abscissa_points)
-            values = np.add(beta_0, np.multiply(beta_1, set_abscissa_points))
-            return values
-        return inner_fn_linear
-
-    def fn_cubic(self, abscissa_ini, abscissa_end):
-        f_abscissa_ini = self.compute_f(abscissa_ini)
-        f_abscissa_end = self.compute_f(abscissa_end)
-        derivative_f_ini = self.compute_derivative_f(abscissa_ini)
-        derivative_f_end = self.compute_derivative_f(abscissa_end)
-        dif_abscissa = abscissa_end - abscissa_ini
-        beta_0 = np.divide(f_abscissa_end, dif_abscissa)
-        beta_1 = np.divide(-f_abscissa_ini, dif_abscissa)
-        beta_2 = np.divide(np.subtract(np.add(np.multiply(derivative_f_end, dif_abscissa), f_abscissa_ini), f_abscissa_end), dif_abscissa ** 3)
-        beta_3 = np.divide(np.subtract(np.add(np.multiply(derivative_f_ini, dif_abscissa), f_abscissa_ini), f_abscissa_end), dif_abscissa ** 3)
-        beta_values = np.column_stack((beta_0, beta_1, beta_2, beta_3))
-        def inner_fn_cubic(set_abscissa_points):
-            set_abscissa_points = self.to_numpy(set_abscissa_points)
-            polynomials = np.row_stack((
-                np.subtract(set_abscissa_points, abscissa_ini),
-                np.subtract(set_abscissa_points, abscissa_end),
-                np.multiply(np.power(np.subtract(set_abscissa_points, abscissa_ini), 2), np.subtract(set_abscissa_points, abscissa_end)),
-                np.multiply(np.subtract(set_abscissa_points, abscissa_ini),np.power(np.subtract(set_abscissa_points, abscissa_end), 2))
-            ))
-            values = np.matmul(beta_values, polynomials)
-            return values
-        return inner_fn_cubic
-
     def break_permutation(self, permutation, global_interval_position, use_interval):
         interval_position_inside_permutation = np.argwhere(global_interval_position == permutation).squeeze()
         # Given the permutation, some we will have to interpolate the information for some of the intervals.
@@ -120,68 +106,6 @@ class ShapleyFda:
             available_intervals = permutation[:interval_position_inside_permutation]
             non_available_intervals = permutation[interval_position_inside_permutation:]
         return available_intervals, non_available_intervals
-
-    def build_interpolation_fn(self, set_intervals, intervals_to_interpolate, labels):
-        intervals_to_interpolate_shape = intervals_to_interpolate.shape
-        list_to_return = np.empty(shape=intervals_to_interpolate_shape, dtype=type(self.compute_f))
-        unique_labels = np.unique(labels)
-
-        # For each label, decide what function to use.
-        for label in unique_labels:
-            label_position = np.ravel(np.argwhere(labels == label))                     
-            intervals_labels = intervals_to_interpolate[label_position]
-            domain_interval = set_intervals[intervals_labels]
-            ini = np.min(domain_interval)
-            end = np.max(domain_interval)
-            is_first_interval_included = np.abs(ini - self.domain_range[0]) < 1e-7
-            is_last_interval_included = np.abs(end - self.domain_range[1]) < 1e-7
-            self.print("\t\t\tlabel:", label)
-            self.print("\t\t\t\tintervals:", intervals_labels)
-            self.print("\t\t\t\trange ini:", ini)
-            self.print("\t\t\t\trange end:", end)
-            # If the whole domain range is included, build a constant interpolation function
-            if is_first_interval_included and is_last_interval_included:
-                self.print("\t\t\t\tfunction: constant")
-                list_to_return[label_position] = self.fn_constant()
-            # else the first interval is included but the last one is not included, buil a linear interpolation
-            elif is_first_interval_included and not is_last_interval_included:
-                self.print("\t\t\t\tfunction: linear with abscissa:", end)
-                list_to_return[label_position] = self.fn_linear(end)
-            # else the first interval is not included but the last one is included, buil a linear interpolation
-            elif not is_first_interval_included and is_last_interval_included:
-                self.print("\t\t\t\tfunction: linear with abscissa:", ini)
-                list_to_return[label_position] = self.fn_linear(ini)
-            # In any other case, build a cubic interpolation function
-            else:
-                list_to_return[label_position] = self.fn_cubic(ini, end)
-                self.print("\t\t\t\tfunction: cubic")
-        list_to_return = list_to_return.tolist()
-        return list_to_return
-    
-    def map_function_interval(self, set_intervals, non_available_intervals):
-        # Check if there are consecutive intervals
-        sorted_labels_intervals = np.empty(shape=non_available_intervals.shape, dtype=non_available_intervals.dtype)
-        sorting_positions = np.argsort(non_available_intervals)
-        sorted_intervals = non_available_intervals[sorting_positions]
-        i_interval = 0
-        label_interval = 0
-        previous_interval = None
-        for interval in sorted_intervals:
-            # Two intervals are not consecutive if the difference between their indexes
-            # is greater than 1. We consider that the previous interval to the first one is
-            # the void set. Therefore, the first set will always be different from the
-            # previous one.
-            if ((previous_interval is None) or ((interval - previous_interval) > 1)):
-                label_interval += 1
-            sorted_labels_intervals[i_interval] = label_interval
-            previous_interval = interval
-            i_interval += 1
-        labels_intervals = sorted_labels_intervals[np.argsort(sorting_positions)]
-        self.print("\t\t\tunique_intervals:", labels_intervals)
-        # Build the function for each of the (sorted) interval
-        sorted_set_fns = self.build_interpolation_fn(set_intervals, sorted_intervals, sorted_labels_intervals)
-        set_fns = [sorted_set_fns[i] for i in sorting_positions]
-        return [(interval, fn) for (interval, fn) in zip(non_available_intervals, set_fns)]
 
     def map_abscissa_interval(self, set_intervals):
         set_intervals_shape = set_intervals.shape
@@ -198,13 +122,34 @@ class ShapleyFda:
             map_object[i_abscissa] = interval_position
             i_abscissa += 1
         return map_object
-    
+
+    def get_abscissa_from_intervals(self, intervals, mapping_abscissa_interval):
+        set_abscissa = []
+        for interval in intervals:
+            abscissa_interval = np.ravel(np.argwhere(interval == mapping_abscissa_interval))
+            set_abscissa.extend(abscissa_interval.tolist())
+        return np.array(set_abscissa, dtype=np.int64)
+
+    def conditional_expectation(
+            self,
+            mean_1,
+            mean_2,
+            matrix_mult
+        ):
+        def inner_conditional_expectation(x_2):
+            diff = np.subtract(x_2, mean_2)
+            vector_mult = np.dot(matrix_mult, diff)
+            result = np.add(mean_1, vector_mult)
+            return result
+        return inner_conditional_expectation
+        
     def recompute_covariate(
             self,
-            set_intervals,
             mapping_abscissa_interval,
             global_interval_position,
             permutation,
+            mean_f,
+            covariance_f,
             use_interval
         ):
         recomputed_covariate = np.empty(shape=self.X.shape)
@@ -215,127 +160,108 @@ class ShapleyFda:
         available_intervals, non_available_intervals = self.break_permutation(permutation_array, global_interval_position, use_interval)
         self.print(
             "\t\tuse_interval:", use_interval,
-            "\tavailable_intervals:", available_intervals, 
-            "\tnon_available_intervals:", non_available_intervals
+            "available_intervals:", available_intervals, 
+            "non_available_intervals:", non_available_intervals
         )
-        # For the available_intervals we will use real values.
-        # This must be a list of tuples.
-        fun_available_intervals = [(x, self.fn_real()) for x in available_intervals]
-        # This must be a list of tuples.
-        fun_non_available_intervals = self.map_function_interval(set_intervals, non_available_intervals)
-        fun_intervals = [*fun_available_intervals, *fun_non_available_intervals]
-        dic_fun_intervals = {interval: funct for (interval, funct) in fun_intervals}
-        # For each abscissa_interval, recompute the covariate
-        for interval_permutation in permutation_array:
-            interval_position = np.ravel(np.argwhere(mapping_abscissa_interval == interval_permutation))
-            interval_abscissa = self.abscissa_points[interval_position]
-            function_to_apply = dic_fun_intervals[interval_permutation]
-            recomputed_values = function_to_apply(interval_abscissa)
-            recomputed_covariate[:, interval_position] = recomputed_values
-        self.print("\t\t\trecomputed_covariate:", recomputed_covariate.tolist())
+        # For available_intervals, use real values
+        position_available_abscissa = self.get_abscissa_from_intervals(available_intervals, mapping_abscissa_interval)
+        available_abscissa = self.abscissa_points[position_available_abscissa]
+        f_available_abscissa = self.compute_f(available_abscissa)
+        recomputed_covariate[:, position_available_abscissa] = f_available_abscissa
+        # For non_available_intervals, use the conditional expecation
+        position_non_available_abscissa = self.get_abscissa_from_intervals(
+            non_available_intervals,
+            mapping_abscissa_interval
+        )
+        non_available_abscissa = self.abscissa_points[position_non_available_abscissa]
+        self.print(
+            "\t\tavailable_abscissa:",
+            available_abscissa,
+            "non_available_abscissa",
+            non_available_abscissa
+        )
+        # Get main statistics to compute conditional expetation
+        mean_available_abscissa = mean_f[position_available_abscissa]
+        mean_non_available_abscissa = mean_f[position_non_available_abscissa]
+        covariance_mix = covariance_f[position_non_available_abscissa, :][:, position_available_abscissa]
+        covariance_available_abscissa = covariance_f[position_available_abscissa, :][:, position_available_abscissa]
+        det_matrix = np.linalg.det(covariance_available_abscissa)
+        if np.abs(det_matrix) <= 1e-7:
+            inv_covariance_available_abscissa = np.linalg.pinv(covariance_available_abscissa)
+        else:    
+            inv_covariance_available_abscissa = np.linalg.inv(covariance_available_abscissa)
+        matrix_mult = np.matmul(covariance_mix, inv_covariance_available_abscissa)
+        conditional_expectation_fn = self.conditional_expectation(
+            mean_1=mean_non_available_abscissa,
+            mean_2=mean_available_abscissa,
+            matrix_mult=matrix_mult
+        )
+        total_individuals = self.X.shape[0]
+        for i in range(total_individuals):
+            X_i_available_abscissa = np.reshape(
+                self.X[i][position_available_abscissa],
+                newshape=(-1, 1)
+            )
+            conditional_expectation_i = np.ravel(conditional_expectation_fn(X_i_available_abscissa))
+            recomputed_covariate[i][position_non_available_abscissa] = conditional_expectation_i
         return recomputed_covariate
 
     def obtain_score(self, covariate, target):
         prediction = self.predict_fn(covariate)
         diff_target_pred = np.subtract(target, prediction)
         diff_target_pred_sq = np.power(diff_target_pred, 2)
-        mse = np.mean(diff_target_pred_sq)
-        #target_mean = np.mean(target)
-        #diff_target_target_mean = np.subtract(target, target_mean)
-        #diff_target_target_mean_sq = np.power(diff_target_target_mean, 2)
-        #tss = np.sum(diff_target_target_mean_sq)
-        #self.print("\t\t\trss:", rss)
-        #self.print("\t\t\ttss:", tss)
-        #r2 = 1 - rss/tss
-        return mse
+        rss = np.sum(diff_target_pred_sq)
+        target_mean = np.mean(target)
+        diff_target_target_mean = np.subtract(target, target_mean)
+        diff_target_target_mean_sq = np.power(diff_target_target_mean, 2)
+        tss = np.sum(diff_target_target_mean_sq)
+        r2 = 1 - rss/tss
+        return r2
 
-    def compute_interval_relevance(self, set_intervals, set_permutations, mapping_abscissa_interval, interval_position):
+    def compute_interval_relevance(
+            self,
+            set_permutations,
+            mapping_abscissa_interval,
+            mean_f,
+            covariance_f,
+            interval_position
+        ):
         set_differences = []
         # For each permutation
         for i_permutation in set_permutations:
             self.print("\tPermutation:", i_permutation)
             # Recreate the set of functions without considering the interval
             covariate_no_interval = self.recompute_covariate(
-                set_intervals,
                 mapping_abscissa_interval,
                 interval_position,
                 i_permutation,
+                mean_f,
+                covariance_f,
                 use_interval = False
             )
              # Recreate the set of functions considering the interval
             covariate_interval = self.recompute_covariate(
-                set_intervals,
                 mapping_abscissa_interval,
                 interval_position,
                 i_permutation,
+                mean_f,
+                covariance_f,
                 use_interval = True
             )
-            # Retrain the model without considering the interval and obtain the score
+            # Obtain the score when the interval is not taken into account
             score_no_interval = self.obtain_score(covariate_no_interval, self.target)
             self.print("\t\tscore_no_interval:", score_no_interval)
-            # Retrain the model considering the interval and obtain the score
+            # Obtain the score when the interval is taken into account
             score_interval = self.obtain_score(covariate_interval, self.target)
             self.print("\t\tscore_interval:", score_interval)
             # Compute the differnece of scores
-            #diff_score = score_interval - score_no_interval
-            diff_score = score_no_interval - score_interval
+            diff_score = score_interval - score_no_interval
             # Stack the difference
             self.print("\t\tdiff_score:", diff_score)
             set_differences.append(diff_score)
         # Compute the mean value
         mean_val = np.mean(set_differences)
         return mean_val
-
-    def compute_function_from_matrix(self, set_abscissa_points, matrix):
-        set_abscissa_points = self.to_numpy(set_abscissa_points)
-        i_point = 0
-        f_points = np.empty(shape=(matrix.shape[0], set_abscissa_points.shape[0]))
-        for point in set_abscissa_points:
-            if (point < self.domain_range[0] or point > self.domain_range[1]):
-                raise ValueError("points contains a point outside the domain range (domain_range)")
-            min_position = np.max(np.argwhere(point >= self.abscissa_points))
-            num_min = self.abscissa_points[min_position]
-            if (np.abs(num_min - point) < 1e-7):
-                f_points[:, i_point] = matrix[:, min_position]
-            else:
-                max_position = np.min(np.argwhere(point < self.abscissa_points))
-                num_max = self.abscissa_points[max_position]
-                w_min = 1 - (point - num_min)/(num_max - num_min)
-                w_max = 1 - (num_max - point)/(num_max - num_min)
-                f_min = matrix[:, min_position]
-                f_max = matrix[:, max_position]
-                f_eval_point = np.add(np.multiply(w_min, f_min), np.multiply(w_max, f_max))
-                f_points[:, i_point] = f_eval_point
-            i_point += 1
-        return f_points
-
-    def compute_f(self, set_abscissa_points):
-        return self.compute_function_from_matrix(set_abscissa_points, self.X)
-    
-    def compute_derivative_f(self, set_abscissa_points):
-        return self.compute_function_from_matrix(set_abscissa_points, self.derivative_X)
-
-    def compute_f_set_intervals(self, set_intervals):
-        set_intervals_shape = set_intervals.shape
-        new_shape = [x for x in set_intervals_shape]
-        new_shape.insert(0, self.X.shape[0])
-        f_set_intervals = np.empty(shape=new_shape)
-        ini = set_intervals[:, 0]
-        end = set_intervals[:, 1]
-        f_ini = self.compute_f(ini)
-        f_end = self.compute_f(end)
-        n_intervals = set_intervals_shape[0]
-        for i_interval in range(n_intervals):
-            f_set_intervals[:, i_interval, 0] = f_ini[:, i_interval]
-            f_set_intervals[:, i_interval, 1] = f_end[:, i_interval]
-        return f_set_intervals
-
-    def print(self, *args):
-        if self.verbose:
-            str_print = ""
-            for arg in args:
-                str_print = str_print + " " + str(arg)
-            print(str_print)
 
     def compute_shapley_value(self, num_permutations, num_intervals=None, intervals=None):
         # Create a set of intervals: 
@@ -352,12 +278,21 @@ class ShapleyFda:
         # Map each abscissa point with its interval
         mapping_abscissa_interval = self.map_abscissa_interval(set_intervals)
         self.print("abscissa:", self.abscissa_points, " ", "abscissa_interval:", mapping_abscissa_interval)
+        # Compute mean value and covariance matrix
+        mean_f = np.reshape(np.mean(self.X, axis=0), newshape=(-1, 1))
+        covariance_f = np.cov(self.X, rowvar=False, bias=True)
         # For each interval, compute the relevance
         intervals_relevance = []
         for i_interval in range(num_intervals):
             interval = set_intervals[i_interval]
             self.print("Computing relevance for interval:", interval, "whose index is", i_interval)
-            relevance = self.compute_interval_relevance(set_intervals, set_permutations, mapping_abscissa_interval, i_interval)
+            relevance = self.compute_interval_relevance(
+                set_permutations,
+                mapping_abscissa_interval,
+                mean_f,
+                covariance_f,
+                i_interval
+            )
             result = [interval, relevance]
             intervals_relevance.append(result)
         return intervals_relevance
