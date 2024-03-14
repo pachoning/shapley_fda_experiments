@@ -1,5 +1,6 @@
 from math import factorial
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 class ShapleyFda:
@@ -18,6 +19,9 @@ class ShapleyFda:
         self.target = target
         self.domain_range = domain_range
         self.verbose = verbose
+        self.shapley_values = [[], []]
+        self.matrix_stored = False
+        self.matrix = []
 
     def validations(self, num_intervals, set_intervals):
         pass
@@ -168,7 +172,7 @@ class ShapleyFda:
         available_abscissa = self.abscissa_points[position_available_abscissa]
         f_available_abscissa = self.compute_f(available_abscissa)
         recomputed_covariate[:, position_available_abscissa] = f_available_abscissa
-        # For non_available_intervals, use the conditional expecation
+        # For non_available_intervals, use the conditional expectation
         position_non_available_abscissa = self.get_abscissa_from_intervals(
             non_available_intervals,
             mapping_abscissa_interval
@@ -176,19 +180,30 @@ class ShapleyFda:
         non_available_abscissa = self.abscissa_points[position_non_available_abscissa]
         self.print(
             "\t\tavailable_abscissa:",
-            available_abscissa,
+            available_abscissa.tolist(),
             "non_available_abscissa",
-            non_available_abscissa
+            non_available_abscissa.tolist()
         )
         # Get main statistics to compute conditional expetation
         mean_available_abscissa = mean_f[position_available_abscissa]
         mean_non_available_abscissa = mean_f[position_non_available_abscissa]
         covariance_mix = covariance_f[position_non_available_abscissa, :][:, position_available_abscissa]
         covariance_available_abscissa = covariance_f[position_available_abscissa, :][:, position_available_abscissa]
-        det_matrix = np.linalg.det(covariance_available_abscissa)
-        if np.abs(det_matrix) <= 1e-7:
+        invertibility = np.linalg.det(covariance_available_abscissa)
+        max_eigenvalue = None
+        min_eigenvalue = None
+        if covariance_available_abscissa.shape[1] > 0:
+            eigenvalues, eigenvectors = np.linalg.eig(covariance_available_abscissa)
+            max_eigenvalue = np.max(np.abs(eigenvalues))
+            min_eigenvalue = np.min(np.abs(eigenvalues))
+            invertibility = min_eigenvalue/max_eigenvalue
+        #self.print("\t\tdet_matrix", det_matrix)
+        self.print("\t\tmax min", max_eigenvalue, min_eigenvalue)
+        if invertibility == 0:
+            self.print("\t\tpseudo inversa!!!!")
             inv_covariance_available_abscissa = np.linalg.pinv(covariance_available_abscissa)
         else:    
+            self.print("\t\tinversa")
             inv_covariance_available_abscissa = np.linalg.inv(covariance_available_abscissa)
         matrix_mult = np.matmul(covariance_mix, inv_covariance_available_abscissa)
         conditional_expectation_fn = self.conditional_expectation(
@@ -248,6 +263,10 @@ class ShapleyFda:
                 covariance_f,
                 use_interval = True
             )
+            if not self.matrix_stored:
+                self.matrix.append(covariate_no_interval)
+                self.matrix.append(covariate_interval)
+                self.matrix_stored = True
             # Obtain the score when the interval is not taken into account
             score_no_interval = self.obtain_score(covariate_no_interval, self.target)
             self.print("\t\tscore_no_interval:", score_no_interval)
@@ -262,6 +281,9 @@ class ShapleyFda:
         # Compute the mean value
         mean_val = np.mean(set_differences)
         return mean_val
+
+    def plot(self):
+        return plt.plot(self.shapley_values[0], self.shapley_values[1], '-bo')
 
     def compute_shapley_value(self, num_permutations, num_intervals=None, intervals=None):
         # Create a set of intervals: 
@@ -295,4 +317,6 @@ class ShapleyFda:
             )
             result = [interval, relevance]
             intervals_relevance.append(result)
+            self.shapley_values[0].append((interval[0] + interval[1])/2)
+            self.shapley_values[1].append(relevance)
         return intervals_relevance
