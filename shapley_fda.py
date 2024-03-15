@@ -20,6 +20,7 @@ class ShapleyFda:
         self.domain_range = domain_range
         self.verbose = verbose
         self.shapley_values = [[], []]
+        self.scores_computed = {}
         self.matrix_stored = False
         self.matrix = []
 
@@ -100,15 +101,16 @@ class ShapleyFda:
         return set_permutations
 
     def break_permutation(self, permutation, global_interval_position, use_interval):
-        interval_position_inside_permutation = np.argwhere(global_interval_position == permutation).squeeze()
+        permutation_array = np.array(permutation)
+        interval_position_inside_permutation = np.argwhere(global_interval_position == permutation_array).squeeze()
         # Given the permutation, some we will have to interpolate the information for some of the intervals.
         # Depending if the current interval is used or not.
         if use_interval:
-            available_intervals = permutation[:(interval_position_inside_permutation + 1)]
-            non_available_intervals = permutation[(interval_position_inside_permutation + 1):]
+            available_intervals = permutation_array[:(interval_position_inside_permutation + 1)]
+            non_available_intervals = permutation_array[(interval_position_inside_permutation + 1):]
         else:
-            available_intervals = permutation[:interval_position_inside_permutation]
-            non_available_intervals = permutation[interval_position_inside_permutation:]
+            available_intervals = permutation_array[:interval_position_inside_permutation]
+            non_available_intervals = permutation_array[interval_position_inside_permutation:]
         return available_intervals, non_available_intervals
 
     def map_abscissa_interval(self, set_intervals):
@@ -149,24 +151,13 @@ class ShapleyFda:
         
     def recompute_covariate(
             self,
+            available_intervals,
+            non_available_intervals,
             mapping_abscissa_interval,
-            global_interval_position,
-            permutation,
             mean_f,
-            covariance_f,
-            use_interval
+            covariance_f
         ):
         recomputed_covariate = np.empty(shape=self.X.shape)
-        permutation_array = np.array(permutation)
-        # Break the permutation into two parts:
-            # first part is the one we are allowed to use
-            # second part is the one to be interpolated, i.e, non-available information
-        available_intervals, non_available_intervals = self.break_permutation(permutation_array, global_interval_position, use_interval)
-        self.print(
-            "\t\tuse_interval:", use_interval,
-            "available_intervals:", available_intervals, 
-            "non_available_intervals:", non_available_intervals
-        )
         # For available_intervals, use real values
         position_available_abscissa = self.get_abscissa_from_intervals(available_intervals, mapping_abscissa_interval)
         available_abscissa = self.abscissa_points[position_available_abscissa]
@@ -233,6 +224,13 @@ class ShapleyFda:
         r2 = 1 - rss/tss
         return r2
 
+    def hash_array(self, array):
+        sorted_array = np.sort(array)
+        str_hash = ''
+        for x in sorted_array:
+            str_hash = str_hash + str(x)
+        return str_hash
+
     def compute_interval_relevance(
             self,
             set_permutations,
@@ -243,38 +241,56 @@ class ShapleyFda:
         ):
         set_differences = []
         # For each permutation
+        matrix_covariate_recreated = []
         for i_permutation in set_permutations:
             self.print("\tPermutation:", i_permutation)
-            # Recreate the set of functions without considering the interval
-            covariate_no_interval = self.recompute_covariate(
-                mapping_abscissa_interval,
-                interval_position,
-                i_permutation,
-                mean_f,
-                covariance_f,
-                use_interval = False
-            )
-             # Recreate the set of functions considering the interval
-            covariate_interval = self.recompute_covariate(
-                mapping_abscissa_interval,
-                interval_position,
-                i_permutation,
-                mean_f,
-                covariance_f,
-                use_interval = True
-            )
+            score_permutation = {}
+            for use_interval in (False, True):
+                # Break the permutation into two parts:
+                    # first part is the one we are allowed to use
+                    # second part is the one to be interpolated, i.e, non-available information
+                available_intervals, non_available_intervals = self.break_permutation(
+                    i_permutation,
+                    interval_position,
+                    use_interval
+                )
+                hashed_available_intervals = self.hash_array(available_intervals)
+                self.print(
+                    "\t\tuse_interval:", use_interval,
+                    "available_intervals:", available_intervals, 
+                    "non_available_intervals:", non_available_intervals,
+                    "hashed_available_intervals", hashed_available_intervals
+                )
+                # If the score is available for the set of available intervals, use it
+                if hashed_available_intervals in self.scores_computed.keys():
+                    score_permutation[use_interval] = self.scores_computed[hashed_available_intervals]
+                else:
+                    # Recreate the set of functions without considering the interval
+                    covariate_recreated = self.recompute_covariate(
+                        available_intervals,
+                        non_available_intervals,
+                        mapping_abscissa_interval,
+                        mean_f,
+                        covariance_f
+                    )
+                    # Compute the score
+                    score = self.obtain_score(
+                        covariate_recreated,
+                        self.target
+                    )
+                    # Sotre the score to compute the difference
+                    score_permutation[use_interval] = score
+                    # Store the score for this set of available intervals
+                    self.scores_computed[hashed_available_intervals] = score
+                if not self.matrix_stored:
+                    matrix_covariate_recreated.append(covariate_recreated)
             if not self.matrix_stored:
-                self.matrix.append(covariate_no_interval)
-                self.matrix.append(covariate_interval)
+                self.matrix = matrix_covariate_recreated.copy()
                 self.matrix_stored = True
-            # Obtain the score when the interval is not taken into account
-            score_no_interval = self.obtain_score(covariate_no_interval, self.target)
-            self.print("\t\tscore_no_interval:", score_no_interval)
-            # Obtain the score when the interval is taken into account
-            score_interval = self.obtain_score(covariate_interval, self.target)
-            self.print("\t\tscore_interval:", score_interval)
+            self.print("\t\tscore without interval:", score_permutation[False])
+            self.print("\t\tscore with interval:", score_permutation[True])
             # Compute the differnece of scores
-            diff_score = score_interval - score_no_interval
+            diff_score = score_permutation[True] - score_permutation[False]
             # Stack the difference
             self.print("\t\tdiff_score:", diff_score)
             set_differences.append(diff_score)
@@ -283,7 +299,10 @@ class ShapleyFda:
         return mean_val
 
     def plot(self):
-        return plt.plot(self.shapley_values[0], self.shapley_values[1], '-bo')
+        if len(self.shapley_values[0]) == 0:
+            raise RuntimeError("Please, run `compute_shapley_value` method before plotting")
+        else:
+            return plt.plot(self.shapley_values[0], self.shapley_values[1], '-bo')
 
     def compute_shapley_value(self, num_permutations, num_intervals=None, intervals=None):
         # Create a set of intervals: 
@@ -319,4 +338,5 @@ class ShapleyFda:
             intervals_relevance.append(result)
             self.shapley_values[0].append((interval[0] + interval[1])/2)
             self.shapley_values[1].append(relevance)
+        self.scores_computed = {}
         return intervals_relevance
