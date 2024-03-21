@@ -20,7 +20,8 @@ class ShapleyFda:
         self.domain_range = domain_range
         self.verbose = verbose
         self.shapley_values = [[], []]
-        self.scores_computed = {}
+        self.score_computed = {}
+        self.covariate_computed = {}
         self.matrix_stored = False
         self.matrix = []
 
@@ -87,17 +88,24 @@ class ShapleyFda:
         return intervals
 
     def create_permutations(self, num_intervals, num_permutations):
+        if num_permutations % 2 != 0:
+            num_permutations = num_permutations + 1
         set_permutations = set()
         total_set_permutations = len(set_permutations)
         # Error when impossible number of permutations is desired
         if num_permutations > factorial(num_intervals):
             raise ValueError("num_permutations can no be greater than the factorial of number of intervals")
-        # Iterate until the desired number of permutations is obtained
-        while total_set_permutations < num_permutations:
-            new_permutation = np.random.choice(a=num_intervals, size=num_intervals, replace=False)
-            new_permutation = tuple(new_permutation)
-            set_permutations.add(new_permutation)
+        # Iterate to get half of the permutations
+        while total_set_permutations < num_permutations//2:
+            permutation = np.random.choice(a=num_intervals, size=num_intervals, replace=False)
+            permutation_sym = np.subtract(num_intervals - 1, permutation)
+            permutation_tuple = tuple(permutation)
+            permutation_sym_tuple = tuple(permutation_sym)
+            if not (permutation_tuple in set_permutations or permutation_sym_tuple in set_permutations):
+                set_permutations.add(permutation_tuple)
+                set_permutations.add(permutation_sym_tuple)
             total_set_permutations = len(set_permutations)
+        # Complete with symmetric permutations
         return set_permutations
 
     def break_permutation(self, permutation, global_interval_position, use_interval):
@@ -180,17 +188,20 @@ class ShapleyFda:
         mean_non_available_abscissa = mean_f[position_non_available_abscissa]
         covariance_mix = covariance_f[position_non_available_abscissa, :][:, position_available_abscissa]
         covariance_available_abscissa = covariance_f[position_available_abscissa, :][:, position_available_abscissa]
-        invertibility = np.linalg.det(covariance_available_abscissa)
+        det = np.linalg.det(covariance_available_abscissa)
+
         max_eigenvalue = None
         min_eigenvalue = None
+        eigen_ration = det
         if covariance_available_abscissa.shape[1] > 0:
             eigenvalues, eigenvectors = np.linalg.eig(covariance_available_abscissa)
             max_eigenvalue = np.max(np.abs(eigenvalues))
             min_eigenvalue = np.min(np.abs(eigenvalues))
-            invertibility = min_eigenvalue/max_eigenvalue
+            eigen_ration = min_eigenvalue/max_eigenvalue
+        invertibility = min(det, eigen_ration)
         #self.print("\t\tdet_matrix", det_matrix)
         self.print("\t\tmax min", max_eigenvalue, min_eigenvalue)
-        if invertibility == 0:
+        if invertibility < 1e-100:
             self.print("\t\tpseudo inversa!!!!")
             inv_covariance_available_abscissa = np.linalg.pinv(covariance_available_abscissa)
         else:    
@@ -222,13 +233,19 @@ class ShapleyFda:
         diff_target_target_mean_sq = np.power(diff_target_target_mean, 2)
         tss = np.sum(diff_target_target_mean_sq)
         r2 = 1 - rss/tss
-        return r2
+        r2_c = r2
+        if r2_c < 0:
+            r2_c = 0
+        return r2_c
 
     def hash_array(self, array):
         sorted_array = np.sort(array)
         str_hash = ''
-        for x in sorted_array:
-            str_hash = str_hash + str(x)
+        for position, x in enumerate(sorted_array):
+            if position == 0:
+                str_hash = str(x)
+            else:
+                str_hash = str_hash + '_' + str(x)
         return str_hash
 
     def compute_interval_relevance(
@@ -262,8 +279,9 @@ class ShapleyFda:
                     "hashed_available_intervals", hashed_available_intervals
                 )
                 # If the score is available for the set of available intervals, use it
-                if hashed_available_intervals in self.scores_computed.keys():
-                    score_permutation[use_interval] = self.scores_computed[hashed_available_intervals]
+                if hashed_available_intervals in self.score_computed.keys():
+                    score_cache = self.score_computed[hashed_available_intervals]
+                    score_permutation[use_interval] = score_cache
                 else:
                     # Recreate the set of functions without considering the interval
                     covariate_recreated = self.recompute_covariate(
@@ -281,7 +299,8 @@ class ShapleyFda:
                     # Sotre the score to compute the difference
                     score_permutation[use_interval] = score
                     # Store the score for this set of available intervals
-                    self.scores_computed[hashed_available_intervals] = score
+                    self.score_computed[hashed_available_intervals] = score
+                    self.covariate_computed[hashed_available_intervals] = covariate_recreated
                 if not self.matrix_stored:
                     matrix_covariate_recreated.append(covariate_recreated)
             if not self.matrix_stored:
@@ -338,5 +357,5 @@ class ShapleyFda:
             intervals_relevance.append(result)
             self.shapley_values[0].append((interval[0] + interval[1])/2)
             self.shapley_values[1].append(relevance)
-        self.scores_computed = {}
+        self.score_computed = {}
         return intervals_relevance
