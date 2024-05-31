@@ -1,4 +1,0 @@
-maths
-numpy
-scikit-fda
-ipykernel

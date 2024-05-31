@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shapley-fda-experiments"
+version = "0.0.1"
+description = "A python package implementing Shapley FDA experiments"
+authors = [
+    {name = "Cristian Pachón García", email = "cc.pachon@gmail.com"},
+]
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = [
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)"
+]
+requires-python = ">=3.8"
+dependencies = [
+    "ipykernel",
+    "keras-tuner",
+    "numpy",
+    "scikit-fda",
+    "tensorflow",
+]
+
+[tool.setuptools]
+packages = [
+    "data",
+    "functional_neural_networks",
+    "hyperopt",
+    "notebooks",
+    "shapley",
+    "utils",
+]
+py-modules = ["__init__"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"data" = ["*.csv"]
