@@ -12,7 +12,7 @@ from typing import Callable, Optional, Union
 import tensorflow as tf
 
 # Internal imports
-from basis import define_basis, calculate_linear_combination
+from functional_neural_networks.basis import define_basis, calculate_linear_combination
 
 
 class FunctionalDense(tf.keras.layers.Layer):
