@@ -8,6 +8,26 @@ class HyperOptFnn(keras_tuner.HyperModel):
         self.resolution = resolution
         super().__init__(self)
 
+    def build_tuner(
+        self,
+        objective="val_loss",
+        max_trials=3,
+        overwrite=True,
+        directory=".",
+        project_name="tune_hypermodel",
+    ):
+
+        cutom_keras_tuner = keras_tuner.RandomSearch(
+            self,
+            objective=objective,
+            max_trials=max_trials,
+            overwrite=overwrite,
+            directory=directory,
+            project_name=project_name,
+        )
+        return cutom_keras_tuner
+
+
     def build_hidden_layers(self, hp, input_layer):
         num_hidden_layers = hp.Int("hidden_layer", min_value=2, max_value=7, step=1)
         layer_options = []
