@@ -20,13 +20,13 @@ class FdaSimulator:
         self.step = step
         self.abscissa_points = np.arange(self.ini, self.end + self.step, self.step)
         self.total_abscissa_points = self.abscissa_points.shape[0]
-        self.type_covariate = ["brownian_with_a_trend", "serie", "symmetric_serie"]
+        self.type_covariate = ["brownian_trend", "fourier_expansion", "symmetric_fourier_expanansion"]
         self.type_target = [
             "linear_unimodal",
             "linear_bimodal",
             "non_linear_unimodal",
             "non_linear_bimodal",
-            "bct"
+            "linear_discrete"
         ]
 
     def to_fdata_grid(self, X):
@@ -83,7 +83,8 @@ class FdaSimulator:
         row_vector_ones_total_abscissa_points = np.ones(shape=(1, self.total_abscissa_points))
         X_simulated = np.empty(shape=(sample_size, self.total_abscissa_points))
         basis_fourier_evaluated = np.squeeze(basis_fourier(self.abscissa_points))
-        lambda_coefficients = np.array([1/i for i in range(1, n_basis_simulated_data + 1)], ndmin=2)
+        #lambda_coefficients = np.array([1/i for i in range(1, n_basis_simulated_data + 1)], ndmin=2)
+        lambda_coefficients = np.array([1 for i in range(1, n_basis_simulated_data + 1)], ndmin=2)
         lambda_matrix = np.dot(lambda_coefficients.T, row_vector_ones_total_abscissa_points)
         for i in range(sample_size):
             if not random_state is None:
@@ -112,7 +113,7 @@ class FdaSimulator:
             type_covariate_str = ', '.join(self.type_covariate)
             raise ValueError(f"type_covariate (for covariate) must be a value in {type_covariate_str}")
         random_state = kwargs["random_state"] if "random_state" in kwargs.keys() else None
-        if type_covariate == "brownian_with_a_trend":
+        if type_covariate == "brownian_trend":
             intercept = kwargs["intercept_brownian"]
             slope = kwargs["slope_brownian"]
             data = self.get_brownian_motion_with_trend(
@@ -121,8 +122,8 @@ class FdaSimulator:
                 slope=slope,
                 random_state=random_state
             )
-        elif type_covariate in ["serie", "symmetric_serie"]:
-            wanted_symmetry = type_covariate == "symmetric_serie"
+        elif type_covariate in ["fourier_expansion", "symmetric_fourier_expanansion"]:
+            wanted_symmetry = type_covariate == "symmetric_fourier_expanansion"
             n_basis_simulated_data = kwargs["n_basis_simulated_data"]
             sd_x = kwargs["sd_x"]
             data = self.get_serie_representation(
@@ -149,14 +150,14 @@ class FdaSimulator:
             beta_pdf_abscissa = 0.5 * (beta_pdf_abscissa + beta_other_pdf_abscissa)
         return beta_pdf_abscissa
 
-    def bct_fn(
+    def linear_discrete(
         self,
         data_input,
         positions,
     ):
         if len(positions) != 4:
             raise ValueError(
-                "When type_transformation is bct, positions must be a list of four numbers"
+                "When type_transformation is linear_discrete, positions must be a list of four numbers"
             )
         total_columns = data_input.shape[1]
         col_indexes = [int(np.floor(x * total_columns)) for x in positions]
@@ -201,7 +202,12 @@ class FdaSimulator:
         )
         matrix_product = np.multiply(data_input, beta_data_matrix)
         matrix_product_flip = np.multiply(data_input_flip, beta_data_matrix)
-        matrix_stack = np.column_stack((matrix_product, matrix_product_flip))
+        matrix_stack = np.column_stack(
+            (
+                np.abs(matrix_product),
+                np.abs(matrix_product_flip)
+            )
+        )
         data_output = np.max(matrix_stack, axis=1)
         data_output = np.reshape(
             data_output,
@@ -238,7 +244,7 @@ class FdaSimulator:
     ):
         data_output = None
         beta_data = None
-        col_indexes_bct = None
+        col_indexes_ld = None
         if not type_transformation in self.type_target:
             type_targete_str = ', '.join(self.type_target)
             raise ValueError(f"type_transformation (for target) must be a value in {type_targete_str}")
@@ -255,13 +261,13 @@ class FdaSimulator:
                 beta_param=beta_param,
                 wanted_bimodal=wanted_bimodal,
             )
-        elif type_transformation == "bct":
+        elif type_transformation == "linear_discrete":
             positions = kwargs["positions"]
-            data_output, col_indexes_bct = self.bct_fn(
+            data_output, col_indexes_ld = self.linear_discrete(
                 data_input=data_input,
                 positions=positions,
             )
-        return data_output, beta_data, col_indexes_bct
+        return data_output, beta_data, col_indexes_ld
 
     def simulate(
         self,
@@ -269,32 +275,47 @@ class FdaSimulator:
         type_transformation,
         sample_size,
         eta,
+        datasets_type=None,
         **kwargs,
     ):
         if eta <= 0 or eta >= 1:
             raise ValueError(f"eta must be inside the interval (0, 1)")
+        covariate_list, phi_covariate_list, epsilon_list = [], [], []
+        beta_data_list, col_indexes_ld_list, target_list = [], [], []
+
+        if datasets_type is None:
+            n_replicas = 1
+        else:
+            n_replicas = len(datasets_type)
         # Obtain the covariate
-        covariate = self.get_covariate(
-            type_covariate=type_covariate,
-            sample_size=sample_size,
-            **kwargs,
-        )
-        # Transform the covariate
-        phi_covariate, beta_data, col_indexes_bct = self.transform_data(
-            data_input=covariate,
-            type_transformation=type_transformation,
-            **kwargs,
-        )
-        var_phi_covariate = np.var(phi_covariate)
-        var_epsilon = var_phi_covariate * (eta/(1 - eta))
-        random_state = kwargs["random_state"] if "random_state" in kwargs.keys() else None
-        if random_state:
-            random_state += 1000
-        random_state_gen = check_random_state(random_state)
-        epsilon = random_state_gen.normal(
-            size=phi_covariate.shape,
-            loc=0,
-            scale=np.sqrt(var_epsilon),
-        )
-        target = np.add(phi_covariate, epsilon)
-        return covariate, phi_covariate, epsilon, beta_data, col_indexes_bct, target
+        for i_replica in range(n_replicas):
+            covariate = self.get_covariate(
+                type_covariate=type_covariate,
+                sample_size=sample_size,
+                **kwargs,
+            )
+            covariate_list.append(covariate)
+            # Transform the covariate
+            phi_covariate, beta_data, col_indexes_ld = self.transform_data(
+                data_input=covariate,
+                type_transformation=type_transformation,
+                **kwargs,
+            )
+            phi_covariate_list.append(phi_covariate)
+            var_phi_covariate = np.var(phi_covariate)
+            var_epsilon = var_phi_covariate * (eta/(1 - eta))
+            random_state = kwargs["random_state"] if "random_state" in kwargs.keys() else None
+            if random_state:
+                random_state = random_state + i_replica
+            random_state_gen = check_random_state(random_state)
+            epsilon = random_state_gen.normal(
+                size=phi_covariate.shape,
+                loc=0,
+                scale=np.sqrt(var_epsilon),
+            )
+            epsilon_list.append(epsilon)
+            target = np.add(phi_covariate, epsilon)
+            beta_data_list.append(beta_data)
+            col_indexes_ld_list.append(col_indexes_ld)
+            target_list.append(target)
+        return covariate_list, phi_covariate_list, epsilon_list, beta_data_list, col_indexes_ld_list, target_list

@@ -1,5 +1,5 @@
-import numpy as np
 from math import factorial
+import numpy as np
 
 class ShapleyFda:
     def __init__(

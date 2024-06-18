@@ -39,8 +39,8 @@ class HyperOptFnn(keras_tuner.HyperModel):
                     "resolution": self.resolution,
                     "basis_type": "Legendre",
                 },
-                'activation': "relu",
-                'pooling': False
+                "activation": "relu",
+                "pooling": False
             }
             layer_options.append(dict_layer)
 
@@ -60,7 +60,7 @@ class HyperOptFnn(keras_tuner.HyperModel):
             center=False,
             scale=False,
             epsilon=1e-10,
-            name='Normalization'
+            name="Normalization"
         )(input_layer)
         hidden_layers = self.build_hidden_layers(hp=hp, input_layer=norm_layer)
         output_layer_options = {
@@ -68,19 +68,19 @@ class HyperOptFnn(keras_tuner.HyperModel):
             "basis_options": {
                 "n_functions": 3,
                 "resolution": self.resolution,
-                "basis_type": 'Fourier'
+                "basis_type": "Fourier"
             },
             "activation": "linear",
             "pooling": True
         }
         output_layer = FunctionalDense(
                 **output_layer_options,
-                name=f'OutputLayer'
+                name=f"OutputLayer"
             )(hidden_layers)
         model = tf.keras.Model(inputs=input_layer, outputs=output_layer)
         model.compile(
             loss=tf.keras.losses.MeanSquaredError(),
-            optimizer='adam',
+            optimizer="adam",
         )
         return model
 

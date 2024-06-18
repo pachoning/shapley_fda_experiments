@@ -87,7 +87,7 @@ class ShapleyFda:
             pass
         return intervals
 
-    def create_permutations(self, num_intervals, num_permutations):
+    def create_permutations(self, num_intervals, num_permutations, seed):
         if num_permutations % 2 != 0:
             num_permutations = num_permutations + 1
         set_permutations = set()
@@ -96,7 +96,10 @@ class ShapleyFda:
         if num_permutations > factorial(num_intervals):
             raise ValueError("num_permutations can no be greater than the factorial of number of intervals")
         # Iterate to get half of the permutations
+        i_seed = 10
         while total_set_permutations < num_permutations//2:
+            if seed:
+                np.random.seed(seed + i_seed)
             permutation = np.random.choice(a=num_intervals, size=num_intervals, replace=False)
             permutation_sym = np.subtract(num_intervals - 1, permutation)
             permutation_tuple = tuple(permutation)
@@ -105,6 +108,7 @@ class ShapleyFda:
                 set_permutations.add(permutation_tuple)
                 set_permutations.add(permutation_sym_tuple)
             total_set_permutations = len(set_permutations)
+            i_seed += 1
         # Complete with symmetric permutations
         return set_permutations
 
@@ -323,7 +327,7 @@ class ShapleyFda:
         else:
             return plt.plot(self.shapley_values[0], self.shapley_values[1], '-bo')
 
-    def compute_shapley_value(self, num_permutations, num_intervals=None, intervals=None):
+    def compute_shapley_value(self, num_permutations, num_intervals=None, intervals=None, seed=None):
         # Create a set of intervals: 
         #       we will treat all the intervals as [a, b), 
         #       except for the las one, which will be [a, b]
@@ -333,7 +337,7 @@ class ShapleyFda:
         self.validations(num_intervals, set_intervals)
         num_intervals = set_intervals.shape[0] if num_intervals is None else num_intervals
         # Get the set of permutations
-        set_permutations = self.create_permutations(num_intervals=num_intervals, num_permutations=num_permutations)
+        set_permutations = self.create_permutations(num_intervals=num_intervals, num_permutations=num_permutations, seed=seed)
         self.print("set_permutations:", set_permutations)
         # Map each abscissa point with its interval
         mapping_abscissa_interval = self.map_abscissa_interval(set_intervals)
