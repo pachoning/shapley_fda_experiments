@@ -12,15 +12,13 @@ import numpy as np
 import os
 import pickle
 
+num_intervals = 20
+num_permutations = 1000
 get_lm_results = True
 get_knn_results = True
 get_fnn_results = True
-num_intervals = 20
-num_permutations = 10
 max_trials_fnn = 12
 domain_range = (0, 1)
-num_intervals = 20
-num_permutations = 1000
 simulated_data_path = os.path.join(data_path, "output")
 n_basis_representation = 11
 basis_bsplines = BSplineBasis(
