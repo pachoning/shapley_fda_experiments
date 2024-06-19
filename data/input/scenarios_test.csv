@@ -1,3 +1,0 @@
-scenario_id,type_covariate,type_transformation,eta,sample_size
-1,serie,linear_unimodal,0.05,200
-5,serie,linear_bimodal,0.05,200
