@@ -10,8 +10,8 @@ class HyperOptFnn(keras_tuner.HyperModel):
 
     def build_tuner(
         self,
+        max_trials,
         objective="val_loss",
-        max_trials=3,
         overwrite=True,
         directory=".",
         project_name="tune_hypermodel",
@@ -29,11 +29,11 @@ class HyperOptFnn(keras_tuner.HyperModel):
 
 
     def build_hidden_layers(self, hp, input_layer):
-        num_hidden_layers = hp.Int("hidden_layer", min_value=2, max_value=7, step=1)
+        num_hidden_layers = hp.Int("hidden_layer", min_value=2, max_value=6, step=1)
         layer_options = []
-        for i_layer in range(num_hidden_layers):
+        for i_layer_hp in range(num_hidden_layers):
             dict_layer = {
-                "n_neurons": hp.Int(f"units_{i_layer}", min_value=5, max_value=7, step=1),
+                "n_neurons": hp.Int(f"units_{i_layer_hp}", min_value=5, max_value=15, step=1),
                 "basis_options": {
                     "n_functions": 6,
                     "resolution": self.resolution,
@@ -46,7 +46,7 @@ class HyperOptFnn(keras_tuner.HyperModel):
 
         layer = input_layer
         for i_layer, layer_option in enumerate(layer_options):
-            layer = layer = FunctionalDense(
+            layer = FunctionalDense(
                 **layer_option,
                 name=f"FunctionalDense_{i_layer}"
             )(layer)
@@ -54,15 +54,16 @@ class HyperOptFnn(keras_tuner.HyperModel):
 
     def build(self, hp):
         input_layer = tf.keras.layers.Input(shape=self.input_shape)
-        norm_axes = list(range(len(self.input_shape) - 1))
-        norm_layer = tf.keras.layers.LayerNormalization(
-            axis=norm_axes,
-            center=False,
-            scale=False,
-            epsilon=1e-10,
-            name="Normalization"
-        )(input_layer)
-        hidden_layers = self.build_hidden_layers(hp=hp, input_layer=norm_layer)
+        #norm_axes = list(range(len(self.input_shape) - 1))
+        #norm_layer = tf.keras.layers.LayerNormalization(
+        #    axis=norm_axes,
+        #    center=False,
+        #    scale=False,
+        #    epsilon=1e-10,
+        #    name="Normalization"
+        #)(input_layer)
+        #hidden_layers = self.build_hidden_layers(hp=hp, input_layer=norm_layer)
+        hidden_layers = self.build_hidden_layers(hp=hp, input_layer=input_layer)
         output_layer_options = {
             "n_neurons": 1,
             "basis_options": {
@@ -84,8 +85,20 @@ class HyperOptFnn(keras_tuner.HyperModel):
         )
         return model
 
-    def fit(self, hp, model, X, y, validation_data=None, **kwargs):
+    def fit(self, hp, model, X, y, validation_data=None, *args, **kwargs):
         if validation_data:
-            return model.fit(X, y, validation_data=validation_data, **kwargs)
+            return model.fit(
+                *args,
+                X,
+                y,
+                validation_data=validation_data,
+                epochs=hp.Choice("epochs", [40, 42, 44, 46, 50, 52, 54, 56, 58, 60]),
+                **kwargs
+            )
         else:
-            return model.fit(X, y, **kwargs)
+            return model.fit(
+                *args,
+                X,
+                y,
+                **kwargs
+            )
