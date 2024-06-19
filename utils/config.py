@@ -1,1 +1,1 @@
-num_simulations = 1
+num_simulations = 50
