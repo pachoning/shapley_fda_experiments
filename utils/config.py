@@ -1,2 +1,2 @@
-end_simulations = 0
-ini_simulations = 20
+end_simulations = 20
+ini_simulations = 0
