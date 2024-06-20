@@ -7,7 +7,7 @@ from skfda.representation.basis import BSplineBasis
 from skfda.representation.grid import FDataGrid
 from utils.predict_np import predict_from_np
 from utils.config import end_simulations, ini_simulations
-from utils.utils_workflow import get_abscissa_points, l2_reg, predict_no_verbose, read_data
+from utils.utils_workflow import get_abscissa_points, l2_reg, obtain_score, predict_no_verbose, read_data
 import numpy as np
 import os
 import pickle
@@ -93,6 +93,9 @@ for i_sim in range(ini_simulations, end_simulations):
                 basis=X_full_bspline.basis,
                 predict_fn=best_model_lm.predict
             )
+            # Compute r^2
+            predicted_test_lm = pred_best_model_lm_fn(X_test)
+            r2_test_lm = obtain_score(predicted_test_lm, target_test[:, 0])
             # Shapley for the Linear Model
             print("\t\tComputing Shapley for linear model")
             shapley_fda_lm = ShapleyFda(
@@ -109,8 +112,12 @@ for i_sim in range(ini_simulations, end_simulations):
             )
             values_shapley_lm_name = f"shapley_lm_{i_sim}.pkl"
             values_shapley_lm_file = os.path.join(data_path, "output", scenario_path, values_shapley_lm_name)
-            with open(values_shapley_lm_file, 'wb') as f_lm:
-                    pickle.dump(values_shapley_lm, f_lm)
+            with open(values_shapley_lm_file, 'wb') as f_val_shapley_lm:
+                    pickle.dump(values_shapley_lm, f_val_shapley_lm)
+            r2_test_lm_name = f"r2_test_lm_{i_sim}.pkl"
+            r2_test_lm_file = os.path.join(data_path, "output", scenario_path, r2_test_lm_name)
+            with open(r2_test_lm_file, 'wb') as f_r2_lm:
+                    pickle.dump(r2_test_lm, f_r2_lm)
         ########## KNN
         if get_knn_results:
             print("\t\tFitting knn model")
@@ -129,6 +136,9 @@ for i_sim in range(ini_simulations, end_simulations):
             best_params_knn = history_knn.best_params_
             best_model_knn = hyperopt_knn.cls_estimator(**best_params_knn)
             _ = best_model_knn.fit(X_full, target_full)
+            # Compute r^2
+            predicted_test_knn = best_model_knn.predict(X_test)
+            r2_test_knn = obtain_score(predicted_test_knn, target_test)
             # Shapley for the KNN
             print("\t\tComputing Shapley for knn model")
             shapley_fda_knn = ShapleyFda(
@@ -145,8 +155,12 @@ for i_sim in range(ini_simulations, end_simulations):
             )
             values_shapley_knn_name = f"shapley_knn_{i_sim}.pkl"
             values_shapley_knn_file = os.path.join(data_path, "output", scenario_path, values_shapley_knn_name)
-            with open(values_shapley_knn_file, 'wb') as f_knn:
-                pickle.dump(values_shapley_knn, f_knn)
+            with open(values_shapley_knn_file, 'wb') as f_val_shapley_knn:
+                pickle.dump(values_shapley_knn, f_val_shapley_knn)
+            r2_test_knn_name = f"r2_test_knn_{i_sim}.pkl"
+            r2_test_knn_file = os.path.join(data_path, "output", scenario_path, r2_test_knn_name)
+            with open(r2_test_knn_file, 'wb') as f_r2_knn:
+                    pickle.dump(r2_test_knn, f_r2_knn)
         ########## FNN
         if get_fnn_results:
             print("\t\tFitting fnn model")
@@ -182,6 +196,9 @@ for i_sim in range(ini_simulations, end_simulations):
                 epochs=best_epochs_fnn,
                 verbose=False
             )
+            # Compute r^2
+            predicted_test_fnn = best_model_fnn.predict(X_test)
+            r2_test_fnn = obtain_score(predicted_test_fnn, target_test)
             # Shapley for FNN
             print("\t\tComputing Shapley for fnn model")
             shapley_fda_fnn = ShapleyFda(
@@ -198,5 +215,9 @@ for i_sim in range(ini_simulations, end_simulations):
             )
             values_shapley_fnn_name = f"shapley_fnn_{i_sim}.pkl"
             values_shapley_fnn_file = os.path.join(data_path, "output", scenario_path, values_shapley_fnn_name)
-            with open(values_shapley_fnn_file, 'wb') as f_knn:
-                pickle.dump(values_shapley_fnn, f_knn)
+            with open(values_shapley_fnn_file, 'wb') as f_val_shapley_fnn:
+                pickle.dump(values_shapley_fnn, f_val_shapley_fnn)
+            r2_test_fnn_name = f"r2_test_fnn_{i_sim}.pkl"
+            r2_test_fnn_file = os.path.join(data_path, "output", scenario_path, r2_test_fnn_name)
+            with open(r2_test_fnn_file, 'wb') as f_r2_fnn:
+                    pickle.dump(r2_test_fnn, f_r2_fnn)
