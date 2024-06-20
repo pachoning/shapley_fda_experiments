@@ -197,7 +197,7 @@ for i_sim in range(ini_simulations, end_simulations):
                 verbose=False
             )
             # Compute r^2
-            predicted_test_fnn = best_model_fnn.predict(X_test)
+            predicted_test_fnn = best_model_fnn.predict(X_test, verbose=False)
             r2_test_fnn = obtain_score(predicted_test_fnn, target_test)
             # Shapley for FNN
             print("\t\tComputing Shapley for fnn model")
