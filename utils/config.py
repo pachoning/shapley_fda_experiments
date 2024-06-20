@@ -1,1 +1,2 @@
-num_simulations = 50
+end_simulations = 0
+ini_simulations = 20

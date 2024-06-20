@@ -6,7 +6,7 @@ from skfda.ml.regression import KNeighborsRegressor, LinearRegression
 from skfda.representation.basis import BSplineBasis
 from skfda.representation.grid import FDataGrid
 from utils.predict_np import predict_from_np
-from utils.config import num_simulations
+from utils.config import end_simulations, ini_simulations
 from utils.utils_workflow import get_abscissa_points, l2_reg, predict_no_verbose, read_data
 import numpy as np
 import os
@@ -30,8 +30,9 @@ reg_list.append(None)
 
 scenarios_list = os.listdir(simulated_data_path)
 total_scenarios = len(scenarios_list)
+num_simulations = end_simulations - ini_simulations
 
-for i_sim in range(num_simulations):
+for i_sim in range(ini_simulations, end_simulations):
     print(f"Working on simulation {i_sim + 1} out of {num_simulations}")
     for i_scenario, scenario_path in enumerate(scenarios_list):
         print(f"\tWorking on scenario_id {scenario_path}. {i_scenario + 1} out of {total_scenarios}")
