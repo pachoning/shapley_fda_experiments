@@ -12,21 +12,19 @@ import numpy as np
 import os
 import pickle
 
+domain_range = (0, 1)
 num_intervals = 20
 num_permutations = 1000
+n_basis_representation = 51
 get_lm_results = True
 get_knn_results = True
 get_fnn_results = True
 max_trials_fnn = 12
-domain_range = (0, 1)
 simulated_data_path = os.path.join(data_path, "output")
-n_basis_representation = 11
 basis_bsplines = BSplineBasis(
     n_basis=n_basis_representation,
-    domain_range=(0 ,1)
+    domain_range=domain_range
 )
-reg_list = [l2_reg(x) for x in np.arange(0.2, 1.5, 0.2)]
-reg_list.append(None)
 
 scenarios_list = os.listdir(simulated_data_path)
 total_scenarios = len(scenarios_list)
@@ -65,6 +63,9 @@ for i_sim in range(ini_simulations, end_simulations):
         X_test_bspline = X_test_grid.to_basis(basis_bsplines)
         X_full_bspline = X_full_grid.to_basis(basis_bsplines)
         ########## Linear model
+        ss_target_train = np.var(target_train) * target_train.shape[0]
+        reg_list = [l2_reg(np.exp(x) * ss_target_train) for x  in np.arange(-35, -5, 2)]
+        reg_list.append(None)
         if get_lm_results:
             print("\t\tFitting linear model")
             hyperopt_lm = HyperOptScikitFda(
@@ -75,18 +76,18 @@ for i_sim in range(ini_simulations, end_simulations):
             params_lm = {
                 "regularization": reg_list
             }
-            hist_lm = hyperopt_lm.search(
+            history_lm = hyperopt_lm.search(
                 params=params_lm,
                 X_train=X_train_bspline,
                 y_train=target_train[:, 0],
                 X_val=X_validation_bspline,
                 y_val=target_validation[:, 0]
             )
-            best_params_lm = hist_lm.best_params_
+            best_params_lm = history_lm.best_params_
             best_model_lm = hyperopt_lm.cls_estimator(**best_params_lm)
             _ = best_model_lm.fit(X_full_bspline, target_full[:, 0])
             # Transform predict function to use a numpy array as input
-            pred_lm = predict_from_np(
+            pred_best_model_lm_fn = predict_from_np(
                 grid_points=abscissa_points,
                 domain_range=domain_range,
                 basis=X_full_bspline.basis,
@@ -95,7 +96,7 @@ for i_sim in range(ini_simulations, end_simulations):
             # Shapley for the Linear Model
             print("\t\tComputing Shapley for linear model")
             shapley_fda_lm = ShapleyFda(
-                predict_fn=pred_lm,
+                predict_fn=pred_best_model_lm_fn,
                 X=X_test,
                 abscissa_points=abscissa_points,
                 target=target_test[:, 0],
@@ -118,14 +119,14 @@ for i_sim in range(ini_simulations, end_simulations):
                 abscissa_points=abscissa_points,
                 domain_range=domain_range,
             )
-            hist_knn = hyperopt_knn.search(
-                params={"n_neighbors": range(3, 12, 2)},
+            history_knn = hyperopt_knn.search(
+                params={"n_neighbors": range(3, 30, 1)},
                 X_train=X_train,
                 y_train=target_train,
                 X_val=X_validation,
                 y_val=target_validation
             )
-            best_params_knn = hist_knn.best_params_
+            best_params_knn = history_knn.best_params_
             best_model_knn = hyperopt_knn.cls_estimator(**best_params_knn)
             _ = best_model_knn.fit(X_full, target_full)
             # Shapley for the KNN
@@ -153,7 +154,6 @@ for i_sim in range(ini_simulations, end_simulations):
                 input_shape=(X_train.shape[1], 1),
                 resolution=X_train.shape[1]
             )
-
             tuner_fnn = hyperopt_fnn.build_tuner(
                 objective="val_loss",
                 max_trials=max_trials_fnn,
@@ -161,41 +161,37 @@ for i_sim in range(ini_simulations, end_simulations):
                 directory=".",
                 project_name="tune_hypermodel",
             )
-
             tuner_fnn.search(
                 X_train,
                 target_train,
                 validation_data=(X_validation, target_validation),
                 verbose=False,
             )
-
-            params_best_fnn = tuner_fnn.get_best_hyperparameters(1)[0]
-            best_epochs = params_best_fnn.get("epochs")
+            best_params_fnn = tuner_fnn.get_best_hyperparameters(1)[0]
+            best_epochs_fnn = best_params_fnn.get("epochs")
             hyperopt_best_fnn = HyperOptFnn(
                 input_shape=(X_train.shape[1], 1),
                 resolution=X_train.shape[1]
             )
-
-            model_fnn = hyperopt_best_fnn.build(params_best_fnn)
-            history = hyperopt_best_fnn.fit(
-                params_best_fnn,
-                model_fnn,
+            best_model_fnn = hyperopt_best_fnn.build(best_params_fnn)
+            history_best_fnn = hyperopt_best_fnn.fit(
+                best_params_fnn,
+                best_model_fnn,
                 X_full,
                 target_full,
-                epochs=best_epochs,
+                epochs=best_epochs_fnn,
                 verbose=False
             )
             # Shapley for FNN
             print("\t\tComputing Shapley for fnn model")
             shapley_fda_fnn = ShapleyFda(
-                predict_fn=predict_no_verbose(model_fnn.predict),
+                predict_fn=predict_no_verbose(best_model_fnn.predict),
                 X=X_test,
                 abscissa_points=abscissa_points,
                 target=target_test,
                 domain_range=domain_range,
                 verbose=False,
             )
-
             values_shapley_fnn = shapley_fda_fnn.compute_shapley_value(
                 num_intervals=num_intervals,
                 num_permutations=num_permutations,
