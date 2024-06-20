@@ -1,5 +1,5 @@
 from data import data_path
-from utils.config import num_simulations
+from utils.config import end_simulations, ini_simulations
 from utils.simulator import FdaSimulator
 import os
 import pandas as pd
@@ -28,6 +28,7 @@ fda_simulator = FdaSimulator()
 times = ["t_" + str(x) for x in fda_simulator.abscissa_points]
 
 datasets_type = ["train", "validation", "test"]
+num_simulations = end_simulations - ini_simulations
 
 for _, scenario in df_scenarios.iterrows():
     scenario_id = scenario["scenario_id"]
