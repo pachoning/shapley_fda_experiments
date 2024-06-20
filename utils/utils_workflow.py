@@ -35,3 +35,14 @@ def l2_reg(lambda_value):
         regularization_parameter=lambda_value
     )
     return operator
+
+def obtain_score(prediction, target):
+    diff_target_pred = np.subtract(target, prediction)
+    diff_target_pred_sq = np.power(diff_target_pred, 2)
+    rss = np.sum(diff_target_pred_sq)
+    target_mean = np.mean(target)
+    diff_target_target_mean = np.subtract(target, target_mean)
+    diff_target_target_mean_sq = np.power(diff_target_target_mean, 2)
+    tss = np.sum(diff_target_target_mean_sq)
+    r2 = 1 - rss/tss
+    return r2
