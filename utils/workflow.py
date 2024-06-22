@@ -28,10 +28,9 @@ basis_bsplines = BSplineBasis(
 
 scenarios_list = os.listdir(simulated_data_path)
 total_scenarios = len(scenarios_list)
-num_simulations = end_simulations - ini_simulations
 
 for i_sim in range(ini_simulations, end_simulations):
-    print(f"Working on simulation {i_sim + 1} out of {num_simulations}")
+    print(f"Working on simulation {i_sim + 1} out of {end_simulations}")
     for i_scenario, scenario_path in enumerate(scenarios_list):
         print(f"\tWorking on scenario_id {scenario_path}. {i_scenario + 1} out of {total_scenarios}")
         full_path = os.path.join(simulated_data_path, scenario_path)
