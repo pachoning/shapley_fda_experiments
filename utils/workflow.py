@@ -26,7 +26,9 @@ basis_bsplines = BSplineBasis(
     domain_range=domain_range
 )
 
-scenarios_list = os.listdir(simulated_data_path)
+scenarios_list = ["scenario_2"]
+if scenarios_list is None:
+    scenarios_list = os.listdir(simulated_data_path)
 total_scenarios = len(scenarios_list)
 
 for i_sim in range(ini_simulations, end_simulations):
