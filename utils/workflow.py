@@ -15,7 +15,7 @@ import pickle
 domain_range = (0, 1)
 num_intervals = 20
 num_permutations = 1000
-n_basis_representation = 51
+n_basis_representation = 91
 get_lm_results = True
 get_knn_results = True
 get_fnn_results = True
