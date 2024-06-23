@@ -1,2 +1,2 @@
-scenario_id,type_covariate,type_transformation,eta,sample_size
-1,fourier_expansion,linear_unimodal,0.05,200
+scenario_id,type_covariate,type_transformation,eta,sample_size,n_basis_representation
+2,fourier_expansion,linear_bimodal,0.05,200,91
