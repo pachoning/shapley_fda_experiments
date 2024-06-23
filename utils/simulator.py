@@ -20,7 +20,7 @@ class FdaSimulator:
         self.step = step
         self.abscissa_points = np.arange(self.ini, self.end + self.step, self.step)
         self.total_abscissa_points = self.abscissa_points.shape[0]
-        self.type_covariate = ["brownian_trend", "fourier_expansion", "symmetric_fourier_expanansion"]
+        self.type_covariate = ["brownian_trend", "fourier_expansion", "symmetric_fourier_expansion"]
         self.type_target = [
             "linear_unimodal",
             "linear_bimodal",
@@ -122,8 +122,8 @@ class FdaSimulator:
                 slope=slope,
                 random_state=random_state
             )
-        elif type_covariate in ["fourier_expansion", "symmetric_fourier_expanansion"]:
-            wanted_symmetry = type_covariate == "symmetric_fourier_expanansion"
+        elif type_covariate in ["fourier_expansion", "symmetric_fourier_expansion"]:
+            wanted_symmetry = type_covariate == "symmetric_fourier_expansion"
             n_basis_simulated_data = kwargs["n_basis_simulated_data"]
             sd_x = kwargs["sd_x"]
             data = self.get_serie_representation(
