@@ -65,7 +65,8 @@ for i_sim in range(ini_simulations, end_simulations):
         X_full_bspline = X_full_grid.to_basis(basis_bsplines)
         ########## Linear model
         ss_target_train = np.var(target_train) * target_train.shape[0]
-        reg_list = [l2_reg(np.exp(x) * ss_target_train) for x  in np.arange(-35, -5, 2)]
+        #reg_list = [l2_reg(np.exp(x) * ss_target_train) for x  in np.arange(-35, -5, 2)]
+        reg_list = [l2_reg(np.exp(x) * ss_target_train) for x  in np.arange(-25, 5, 3)]
         reg_list.append(None)
         if get_lm_results:
             print("\t\tFitting linear model")
