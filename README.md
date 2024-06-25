@@ -12,4 +12,4 @@ Once the data is generated, then the Shapley values can be obtained:
 python utils.workflow.py
 ```
 
-Finally, to analise the results of the simulations, use [this notebook](https://github.com/pachoning/shapley_fda_experiments/blob/main/notebooks/analyses_simulations.ipynb). To analyse the results of tecator dataset, unse [this notebook](https://github.com/pachoning/shapley_fda_experiments/blob/main/notebooks/analyses_real_data.ipynb).
+Finally, to analise the results of the simulations, use [this notebook](https://github.com/pachoning/shapley_fda_experiments/blob/main/notebooks/analyses_simulations.ipynb). To analyse the results of tecator dataset, use [this notebook](https://github.com/pachoning/shapley_fda_experiments/blob/main/notebooks/analyses_real_data.ipynb).
