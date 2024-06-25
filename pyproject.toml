@@ -27,6 +27,7 @@ dependencies = [
 packages = [
     "data",
     "functional_neural_networks",
+    "images",
     "hyperopt",
     "notebooks",
     "shapley",
