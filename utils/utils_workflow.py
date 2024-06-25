@@ -64,7 +64,7 @@ def plot_step_fn(
     domain_range,
     x_lab,
     y_lab,
-    is_tecator=False,
+    plot_continuous_vline=False,
     plt_h_line=True,
     plot_v_line=True,
 ):
@@ -77,7 +77,7 @@ def plot_step_fn(
     print("Factor:", factor)
     #factor = 1
     n_models = len(models)
-    if is_tecator:
+    if plot_continuous_vline:
         plt.step(
             x_min,
             factor * values.T,
