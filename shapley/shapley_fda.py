@@ -20,10 +20,6 @@ class ShapleyFda:
         self.domain_range = domain_range
         self.verbose = verbose
         self.shapley_values = [[], []]
-        self.score_computed = {}
-        self.covariate_computed = {}
-        self.matrix_stored = False
-        self.matrix = []
 
     def validations(self, num_intervals, set_intervals):
         pass
@@ -252,17 +248,52 @@ class ShapleyFda:
                 str_hash = str_hash + '_' + str(x)
         return str_hash
 
+    def compute_shapley_model_score(
+        self,
+        hashed_available_intervals,
+        available_intervals,
+        non_available_intervals,
+        mapping_abscissa_interval,
+        mean_f,
+        covariance_f,
+        scores_computed,
+        covariates_computed,
+    ):
+        # If the score is available for the set of available intervals, use it
+        if hashed_available_intervals in scores_computed.keys():
+            score = scores_computed[hashed_available_intervals]
+        else:
+            # Recreate the set of functions without considering the interval
+            covariate_recreated = self.recompute_covariate(
+                available_intervals,
+                non_available_intervals,
+                mapping_abscissa_interval,
+                mean_f,
+                covariance_f
+            )
+            # Compute the score
+            score = self.obtain_score(
+                covariate_recreated,
+                self.target
+            )
+            # Store info in cache
+            covariates_computed[hashed_available_intervals] = covariate_recreated
+            scores_computed[hashed_available_intervals] = score
+        return score
+
     def compute_interval_relevance(
             self,
             set_permutations,
             mapping_abscissa_interval,
             mean_f,
             covariance_f,
-            interval_position
+            interval_position,
+            compute_model_based_shapley,
+            scores_computed,
+            covariates_computed
         ):
         set_differences = []
         # For each permutation
-        matrix_covariate_recreated = []
         for i_permutation in set_permutations:
             self.print("\tPermutation:", i_permutation)
             score_permutation = {}
@@ -275,6 +306,7 @@ class ShapleyFda:
                     interval_position,
                     use_interval
                 )
+                # Available intervals are hashed to store them in the cache
                 hashed_available_intervals = self.hash_array(available_intervals)
                 self.print(
                     "\t\tuse_interval:", use_interval,
@@ -282,43 +314,32 @@ class ShapleyFda:
                     "non_available_intervals:", non_available_intervals,
                     "hashed_available_intervals", hashed_available_intervals
                 )
-                # If the score is available for the set of available intervals, use it
-                if hashed_available_intervals in self.score_computed.keys():
-                    score_cache = self.score_computed[hashed_available_intervals]
-                    score_permutation[use_interval] = score_cache
-                else:
-                    # Recreate the set of functions without considering the interval
-                    covariate_recreated = self.recompute_covariate(
-                        available_intervals,
-                        non_available_intervals,
-                        mapping_abscissa_interval,
-                        mean_f,
-                        covariance_f
+                # Compute Shapley value recreating the covariable
+                if compute_model_based_shapley:
+                    model_based_score = self.compute_shapley_model_score(
+                        hashed_available_intervals=hashed_available_intervals,
+                        available_intervals=available_intervals,
+                        non_available_intervals=non_available_intervals,
+                        mapping_abscissa_interval=mapping_abscissa_interval,
+                        mean_f=mean_f,
+                        covariance_f=covariance_f,
+                        scores_computed=scores_computed,
+                        covariates_computed=covariates_computed,
                     )
-                    # Compute the score
-                    score = self.obtain_score(
-                        covariate_recreated,
-                        self.target
-                    )
-                    # Sotre the score to compute the difference
-                    score_permutation[use_interval] = score
-                    # Store the score for this set of available intervals
-                    self.score_computed[hashed_available_intervals] = score
-                    self.covariate_computed[hashed_available_intervals] = covariate_recreated
-                if not self.matrix_stored:
-                    matrix_covariate_recreated.append(covariate_recreated)
-            if not self.matrix_stored:
-                self.matrix = matrix_covariate_recreated.copy()
-                self.matrix_stored = True
-            self.print("\t\tscore without interval:", score_permutation[False])
-            self.print("\t\tscore with interval:", score_permutation[True])
-            # Compute the differnece of scores
-            diff_score = score_permutation[True] - score_permutation[False]
-            # Stack the difference
-            self.print("\t\tdiff_score:", diff_score)
-            set_differences.append(diff_score)
+                    score_permutation[use_interval] = model_based_score
+            if compute_model_based_shapley:
+                self.print("\t\tscore without interval:", score_permutation[False])
+                self.print("\t\tscore with interval:", score_permutation[True])
+                # Compute the differnece of scores
+                diff_score = score_permutation[True] - score_permutation[False]
+                # Stack the difference
+                self.print("\t\tdiff_score:", diff_score)
+                set_differences.append(diff_score)
         # Compute the mean value
-        mean_val = np.mean(set_differences)
+        if compute_model_based_shapley:
+            mean_val = np.mean(set_differences)
+        else:
+            mean_val = np.full(shape=(), fill_value=np.nan)
         return mean_val
 
     def plot(self):
@@ -327,7 +348,14 @@ class ShapleyFda:
         else:
             return plt.plot(self.shapley_values[0], self.shapley_values[1], '-bo')
 
-    def compute_shapley_value(self, num_permutations, num_intervals=None, intervals=None, seed=None):
+    def compute_shapley_value(
+            self,
+            num_permutations,
+            num_intervals=None,
+            intervals=None,
+            seed=None,
+            compute_model_based_shapley=True
+        ):
         # Create a set of intervals: 
         #       we will treat all the intervals as [a, b), 
         #       except for the las one, which will be [a, b]
@@ -345,6 +373,10 @@ class ShapleyFda:
         # Compute mean value and covariance matrix
         mean_f = np.reshape(np.mean(self.X, axis=0), newshape=(-1, 1))
         covariance_f = np.cov(self.X, rowvar=False, bias=True)
+        # scores_computed is used to save the scores with the aim to save time since we
+        # avoid computing them again
+        scores_computed = {}
+        covariates_computed = {}
         # For each interval, compute the relevance
         intervals_relevance = []
         for i_interval in range(num_intervals):
@@ -355,11 +387,13 @@ class ShapleyFda:
                 mapping_abscissa_interval,
                 mean_f,
                 covariance_f,
-                i_interval
+                i_interval,
+                compute_model_based_shapley,
+                scores_computed,
+                covariates_computed,
             )
             result = [interval, relevance]
             intervals_relevance.append(result)
             self.shapley_values[0].append((interval[0] + interval[1])/2)
             self.shapley_values[1].append(relevance)
-        self.score_computed = {}
         return intervals_relevance
