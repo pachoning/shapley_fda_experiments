@@ -263,12 +263,12 @@ class ShapleyFda:
         mapping_abscissa_interval,
         mean_f,
         covariance_f,
-        scores_computed,
+        shapley_scores_computed,
         covariates_computed,
     ):
         # If the score is available for the set of available intervals, use it
-        if hashed_available_intervals in scores_computed["model_based"].keys():
-            score = scores_computed["model_based"][hashed_available_intervals]
+        if hashed_available_intervals in shapley_scores_computed["model_based"].keys():
+            shapley_score = shapley_scores_computed["model_based"][hashed_available_intervals]
         else:
             # Recreate the set of functions without considering the interval
             covariate_recreated = self.recompute_covariate(
@@ -279,14 +279,14 @@ class ShapleyFda:
                 covariance_f
             )
             # Compute the score
-            score = self.obtain_score(
+            shapley_score = self.obtain_score(
                 covariate_recreated,
                 self.target
             )
             # Store info in cache
             covariates_computed[hashed_available_intervals] = covariate_recreated
-            scores_computed["model_based"][hashed_available_intervals] = score
-        return score
+            shapley_scores_computed["model_based"][hashed_available_intervals] = shapley_score
+        return shapley_score
 
     def compute_interval_relevance(
             self,
@@ -296,14 +296,14 @@ class ShapleyFda:
             covariance_f,
             interval_position,
             compute_model_based_shapley,
-            scores_computed,
+            shapley_scores_computed,
             covariates_computed
         ):
         set_differences = []
         # For each permutation
         for i_permutation in set_permutations:
             self.print("\tPermutation:", i_permutation)
-            score_permutation = {
+            shapley_score_permutation = {
                 "model_based": {}
             }
             for use_interval in (False, True):
@@ -325,22 +325,22 @@ class ShapleyFda:
                 )
                 # Compute Shapley value recreating the covariable
                 if compute_model_based_shapley:
-                    model_based_score = self.compute_model_based(
+                    model_based_shapley_score = self.compute_model_based(
                         hashed_available_intervals=hashed_available_intervals,
                         available_intervals=available_intervals,
                         non_available_intervals=non_available_intervals,
                         mapping_abscissa_interval=mapping_abscissa_interval,
                         mean_f=mean_f,
                         covariance_f=covariance_f,
-                        scores_computed=scores_computed,
+                        shapley_scores_computed=shapley_scores_computed,
                         covariates_computed=covariates_computed,
                     )
-                    score_permutation["model_based"][use_interval] = model_based_score
+                    shapley_score_permutation["model_based"][use_interval] = model_based_shapley_score
             if compute_model_based_shapley:
-                self.print("\t\tscore without interval:", score_permutation["model_based"][False])
-                self.print("\t\tscore with interval:", score_permutation["model_based"][True])
+                self.print("\t\tscore without interval:", shapley_score_permutation["model_based"][False])
+                self.print("\t\tscore with interval:", shapley_score_permutation["model_based"][True])
                 # Compute the differnece of scores
-                diff_score = score_permutation["model_based"][True] - score_permutation["model_based"][False]
+                diff_score = shapley_score_permutation["model_based"][True] - shapley_score_permutation["model_based"][False]
                 # Stack the difference
                 self.print("\t\tdiff_score:", diff_score)
                 set_differences.append(diff_score)
@@ -389,10 +389,10 @@ class ShapleyFda:
         # Compute mean value and covariance matrix
         mean_f = np.reshape(np.mean(self.X, axis=0), newshape=(-1, 1))
         covariance_f = np.cov(self.X, rowvar=False, bias=True)
-        # model_based_scores_computed is used to save the scores with the aim to save time since we
+        # shapley_scores_computed is used to save the scores with the aim to save time since we
         # avoid computing them again
-        scores_computed = {
-            "model_based": {}
+        shapley_scores_computed = {
+            "model_based": {},
         }
         covariates_computed = {}
         # For each interval, compute the relevance
@@ -407,7 +407,7 @@ class ShapleyFda:
                 covariance_f,
                 i_interval,
                 compute_model_based_shapley,
-                scores_computed,
+                shapley_scores_computed,
                 covariates_computed,
             )
             result = [interval, relevance]
