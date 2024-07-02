@@ -19,10 +19,14 @@ class ShapleyFda:
         self.target = target
         self.domain_range = domain_range
         self.verbose = verbose
-        self.shapley_values = [
+        self._default_shapley_values()
+
+    def _default_shapley_values(self):
+        value = [
             [],
             {"model_based": [], "mrmr":[]}
         ]
+        self.shapley_values = value
 
     def validations(self, num_intervals, set_intervals):
         pass
@@ -366,6 +370,7 @@ class ShapleyFda:
         # Create a set of intervals: 
         #       we will treat all the intervals as [a, b), 
         #       except for the las one, which will be [a, b]
+        self._default_shapley_values()
         set_intervals = self.create_set_intervals(num_intervals, intervals)
         self.print("set_intervals:\n", set_intervals)
         # Perform validations
