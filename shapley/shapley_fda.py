@@ -19,7 +19,10 @@ class ShapleyFda:
         self.target = target
         self.domain_range = domain_range
         self.verbose = verbose
-        self.shapley_values = [[], []]
+        self.shapley_values = [
+            [],
+            {"model_based": [], "mrmr":[]}
+        ]
 
     def validations(self, num_intervals, set_intervals):
         pass
@@ -248,7 +251,7 @@ class ShapleyFda:
                 str_hash = str_hash + '_' + str(x)
         return str_hash
 
-    def compute_shapley_model_score(
+    def compute_model_based(
         self,
         hashed_available_intervals,
         available_intervals,
@@ -260,8 +263,8 @@ class ShapleyFda:
         covariates_computed,
     ):
         # If the score is available for the set of available intervals, use it
-        if hashed_available_intervals in scores_computed.keys():
-            score = scores_computed[hashed_available_intervals]
+        if hashed_available_intervals in scores_computed["model_based"].keys():
+            score = scores_computed["model_based"][hashed_available_intervals]
         else:
             # Recreate the set of functions without considering the interval
             covariate_recreated = self.recompute_covariate(
@@ -278,7 +281,7 @@ class ShapleyFda:
             )
             # Store info in cache
             covariates_computed[hashed_available_intervals] = covariate_recreated
-            scores_computed[hashed_available_intervals] = score
+            scores_computed["model_based"][hashed_available_intervals] = score
         return score
 
     def compute_interval_relevance(
@@ -296,7 +299,9 @@ class ShapleyFda:
         # For each permutation
         for i_permutation in set_permutations:
             self.print("\tPermutation:", i_permutation)
-            score_permutation = {}
+            score_permutation = {
+                "model_based": {}
+            }
             for use_interval in (False, True):
                 # Break the permutation into two parts:
                     # first part is the one we are allowed to use
@@ -316,7 +321,7 @@ class ShapleyFda:
                 )
                 # Compute Shapley value recreating the covariable
                 if compute_model_based_shapley:
-                    model_based_score = self.compute_shapley_model_score(
+                    model_based_score = self.compute_model_based(
                         hashed_available_intervals=hashed_available_intervals,
                         available_intervals=available_intervals,
                         non_available_intervals=non_available_intervals,
@@ -326,12 +331,12 @@ class ShapleyFda:
                         scores_computed=scores_computed,
                         covariates_computed=covariates_computed,
                     )
-                    score_permutation[use_interval] = model_based_score
+                    score_permutation["model_based"][use_interval] = model_based_score
             if compute_model_based_shapley:
-                self.print("\t\tscore without interval:", score_permutation[False])
-                self.print("\t\tscore with interval:", score_permutation[True])
+                self.print("\t\tscore without interval:", score_permutation["model_based"][False])
+                self.print("\t\tscore with interval:", score_permutation["model_based"][True])
                 # Compute the differnece of scores
-                diff_score = score_permutation[True] - score_permutation[False]
+                diff_score = score_permutation["model_based"][True] - score_permutation["model_based"][False]
                 # Stack the difference
                 self.print("\t\tdiff_score:", diff_score)
                 set_differences.append(diff_score)
@@ -346,7 +351,9 @@ class ShapleyFda:
         if len(self.shapley_values[0]) == 0:
             raise RuntimeError("Please, run `compute_shapley_value` method before plotting")
         else:
-            return plt.plot(self.shapley_values[0], self.shapley_values[1], '-bo')
+            x_val = self.shapley_values[0]
+            y_val = self.shapley_values[1]["model_based"]
+            return plt.plot(x_val, y_val, '-bo')
 
     def compute_shapley_value(
             self,
@@ -365,7 +372,11 @@ class ShapleyFda:
         self.validations(num_intervals, set_intervals)
         num_intervals = set_intervals.shape[0] if num_intervals is None else num_intervals
         # Get the set of permutations
-        set_permutations = self.create_permutations(num_intervals=num_intervals, num_permutations=num_permutations, seed=seed)
+        set_permutations = self.create_permutations(
+            num_intervals=num_intervals,
+            num_permutations=num_permutations,
+            seed=seed
+        )
         self.print("set_permutations:", set_permutations)
         # Map each abscissa point with its interval
         mapping_abscissa_interval = self.map_abscissa_interval(set_intervals)
@@ -373,9 +384,11 @@ class ShapleyFda:
         # Compute mean value and covariance matrix
         mean_f = np.reshape(np.mean(self.X, axis=0), newshape=(-1, 1))
         covariance_f = np.cov(self.X, rowvar=False, bias=True)
-        # scores_computed is used to save the scores with the aim to save time since we
+        # model_based_scores_computed is used to save the scores with the aim to save time since we
         # avoid computing them again
-        scores_computed = {}
+        scores_computed = {
+            "model_based": {}
+        }
         covariates_computed = {}
         # For each interval, compute the relevance
         intervals_relevance = []
@@ -395,5 +408,5 @@ class ShapleyFda:
             result = [interval, relevance]
             intervals_relevance.append(result)
             self.shapley_values[0].append((interval[0] + interval[1])/2)
-            self.shapley_values[1].append(relevance)
+            self.shapley_values[1]["model_based"].append(relevance)
         return intervals_relevance
