@@ -322,10 +322,8 @@ class ShapleyFda:
                 redundancy = 1
             else:
                 redundancy = np.mean(np.abs(np.corrcoef(f_available_abscissa, rowvar=False)))
-                for i_feature in range(total_available_abscissa):
-                    X_i = f_available_abscissa[:, i_feature]
-                    relevance += np.abs(np.corrcoef(X_i, self.target)[0, 1]) 
-                relevance = relevance/total_available_abscissa
+                relevance_matrix = np.corrcoef(f_available_abscissa, self.target, rowvar=False)
+                relevance = np.mean(np.abs(relevance_matrix[:, -1]))
             score = relevance/redundancy
             # Store the info in memory
             shapley_scores_computed["mrmr_based"][hashed_available_intervals] = score
