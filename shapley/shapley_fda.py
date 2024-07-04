@@ -19,20 +19,26 @@ class ShapleyFda:
         self.target = target
         self.domain_range = domain_range
         self.verbose = verbose
-        self._default_shapley_values()
+        self.shapley_values = self._default_shapley_values()
 
     def _default_shapley_values(self):
-        value = [
-            [],
-            {"model_based": [], "mrmr":[]}
-        ]
-        self.shapley_values = value
+        value = {
+            "intervals": [],
+            "middle_points":[],
+            "model_based": [],
+            "mrmr_based": [],
+        }
+        return value
 
     def validations(self, num_intervals, set_intervals):
         pass
 
-    def print(self, *args):
-        if self.verbose:
+    def print(
+        self,
+        cond=True,
+        *args,
+    ):
+        if self.verbose and cond:
             str_print = ""
             for arg in args:
                 str_print = str_print + " " + str(arg)
@@ -221,6 +227,7 @@ class ShapleyFda:
             matrix_mult=matrix_mult
         )
         total_individuals = self.X.shape[0]
+        # To do: review this part to speed it up. Mw may use the method compute_f
         for i in range(total_individuals):
             X_i_available_abscissa = np.reshape(
                 self.X[i][position_available_abscissa],
@@ -261,9 +268,9 @@ class ShapleyFda:
         available_intervals,
         non_available_intervals,
         mapping_abscissa_interval,
+        shapley_scores_computed,
         mean_f,
         covariance_f,
-        shapley_scores_computed,
         covariates_computed,
     ):
         # If the score is available for the set of available intervals, use it
@@ -288,6 +295,42 @@ class ShapleyFda:
             shapley_scores_computed["model_based"][hashed_available_intervals] = shapley_score
         return shapley_score
 
+    def  compute_mrmr_based(
+            self,
+            hashed_available_intervals,
+            available_intervals,
+            mapping_abscissa_interval,
+            shapley_scores_computed,
+        ):
+        # In the information is already computed, use it
+        if hashed_available_intervals in shapley_scores_computed["mrmr_based"].keys():
+            score = shapley_scores_computed["mrmr_based"][hashed_available_intervals]
+        else:
+            # Get the submatrix
+            position_available_abscissa = self.get_abscissa_from_intervals(
+                available_intervals,
+                mapping_abscissa_interval
+            )
+            available_abscissa = self.abscissa_points[position_available_abscissa]
+            total_available_abscissa = available_abscissa.shape[0]
+            f_available_abscissa = self.compute_f(available_abscissa)
+            redundancy = 0
+            relevance = 0
+            # Compute the metrics
+            if total_available_abscissa == 0:
+                relevance = 0
+                redundancy = 1
+            else:
+                redundancy = np.mean(np.abs(np.corrcoef(f_available_abscissa, rowvar=False)))
+                for i_feature in range(total_available_abscissa):
+                    X_i = f_available_abscissa[:, i_feature]
+                    relevance += np.abs(np.corrcoef(X_i, self.target)[0, 1]) 
+                relevance = relevance/total_available_abscissa
+            score = relevance/redundancy
+            # Store the info in memory
+            shapley_scores_computed["mrmr_based"][hashed_available_intervals] = score
+        return score
+
     def compute_interval_relevance(
             self,
             set_permutations,
@@ -295,16 +338,29 @@ class ShapleyFda:
             mean_f,
             covariance_f,
             interval_position,
-            compute_model_based_shapley,
+            covariates_computed,
             shapley_scores_computed,
-            covariates_computed
+            compute_model_based_shapley,
+            compute_mrmr_based_shapley,
         ):
-        set_differences = []
+        set_differences = {
+            "model_based": [],
+            "mrmr_based": [],
+        }
+        mean_value = {
+            "model_based": np.full(shape=(), fill_value=np.nan),
+            "mrmr_based": np.full(shape=(), fill_value=np.nan),
+        }
         # For each permutation
         for i_permutation in set_permutations:
             self.print("\tPermutation:", i_permutation)
             shapley_score_permutation = {
-                "model_based": {}
+                "model_based": {},
+                "mrmr_based": {},
+            }
+            diff = {
+                "model_based": 0,
+                "mrmr_based": 0,
             }
             for use_interval in (False, True):
                 # Break the permutation into two parts:
@@ -324,39 +380,91 @@ class ShapleyFda:
                     "hashed_available_intervals", hashed_available_intervals
                 )
                 # Compute Shapley value recreating the covariable
+                model_based_shapley_score = 0
                 if compute_model_based_shapley:
                     model_based_shapley_score = self.compute_model_based(
                         hashed_available_intervals=hashed_available_intervals,
                         available_intervals=available_intervals,
                         non_available_intervals=non_available_intervals,
                         mapping_abscissa_interval=mapping_abscissa_interval,
+                        shapley_scores_computed=shapley_scores_computed,
                         mean_f=mean_f,
                         covariance_f=covariance_f,
-                        shapley_scores_computed=shapley_scores_computed,
                         covariates_computed=covariates_computed,
                     )
-                    shapley_score_permutation["model_based"][use_interval] = model_based_shapley_score
-            if compute_model_based_shapley:
-                self.print("\t\tscore without interval:", shapley_score_permutation["model_based"][False])
-                self.print("\t\tscore with interval:", shapley_score_permutation["model_based"][True])
-                # Compute the differnece of scores
-                diff_score = shapley_score_permutation["model_based"][True] - shapley_score_permutation["model_based"][False]
-                # Stack the difference
-                self.print("\t\tdiff_score:", diff_score)
-                set_differences.append(diff_score)
+                shapley_score_permutation["model_based"][use_interval] = model_based_shapley_score
+
+                mrmr_shapley_score = 0
+                if compute_mrmr_based_shapley:
+                    mrmr_shapley_score = self.compute_mrmr_based(
+                        hashed_available_intervals=hashed_available_intervals,
+                        available_intervals=available_intervals,
+                        mapping_abscissa_interval=mapping_abscissa_interval,
+                        shapley_scores_computed=shapley_scores_computed,
+                    )
+                shapley_score_permutation["mrmr_based"][use_interval] = mrmr_shapley_score
+
+            self.print(
+                compute_model_based_shapley,
+                "\t\tscore without interval (model based):",
+                shapley_score_permutation["model_based"][False],
+            )
+            self.print(
+                compute_model_based_shapley,
+                "\t\tscore with interval (model based):",
+                shapley_score_permutation["model_based"][True],
+            )
+
+            self.print(
+                compute_mrmr_based_shapley,
+                "\t\tscore without interval (mrmr based):",
+                shapley_score_permutation["mrmr_based"][False],
+            )
+            self.print(
+                compute_mrmr_based_shapley,
+                "\t\tscore with interval (mrmr based):",
+                shapley_score_permutation["mrmr_based"][True],
+            )
+
+            # Compute the differnece of scores
+            diff["model_based"] = shapley_score_permutation["model_based"][True] - shapley_score_permutation["model_based"][False]
+            diff["mrmr_based"] = shapley_score_permutation["mrmr_based"][True] - shapley_score_permutation["mrmr_based"][False]
+            # Stack the difference
+            self.print(
+                compute_model_based_shapley,
+                "\t\tdiff_score (model based):",
+                diff["model_based"]
+            )
+            set_differences["model_based"].append(diff["model_based"])
+            set_differences["mrmr_based"].append(diff["mrmr_based"])
+
+            self.print(
+                compute_mrmr_based_shapley,
+                "\t\tdiff_score (mrmr based):",
+                diff["mrmr_based"]
+            )
         # Compute the mean value
         if compute_model_based_shapley:
-            mean_val = np.mean(set_differences)
-        else:
-            mean_val = np.full(shape=(), fill_value=np.nan)
-        return mean_val
+            mean_value["model_based"] = np.mean(set_differences["model_based"])
+        if compute_mrmr_based_shapley:
+            mean_value["mrmr_based"] = np.mean(set_differences["mrmr_based"])
+        return mean_value
 
-    def plot(self):
-        if len(self.shapley_values[0]) == 0:
+    def plot(self, which="model_based"):
+        if len(self.shapley_values["intervals"]) == 0:
             raise RuntimeError("Please, run `compute_shapley_value` method before plotting")
         else:
-            x_val = self.shapley_values[0]
-            y_val = self.shapley_values[1]["model_based"]
+            x_val = [(x[0] + x[1])/2 for x in self.shapley_values["intervals"]]
+            if which == "model_based":
+                y_val = [y for y in self.shapley_values["model_based"]]
+                if np.sum(np.isnan(y_val)) == len(y_val):
+                    raise RuntimeError("Please, run `compute_shapley_value` with `compute_model_based_shapley` set to True")
+            elif  which == "mrmr_based":
+                y_val = [y for y in self.shapley_values["mrmr_based"]]
+                if np.sum(np.isnan(y_val)) == len(y_val):
+                    raise RuntimeError("Please, run `compute_shapley_value` with `compute_mrmr_based_shapley` set to True")
+            else:
+                raise RuntimeError("`which` argument must be either `model_based` or `mrmr_based`")
             return plt.plot(x_val, y_val, '-bo')
 
     def compute_shapley_value(
@@ -365,12 +473,14 @@ class ShapleyFda:
             num_intervals=None,
             intervals=None,
             seed=None,
-            compute_model_based_shapley=True
+            compute_model_based_shapley=True,
+            compute_mrmr_based_shapley=True,
         ):
         # Create a set of intervals: 
         #       we will treat all the intervals as [a, b), 
         #       except for the las one, which will be [a, b]
-        self._default_shapley_values()
+        self.shapley_values = self._default_shapley_values()
+        results = self._default_shapley_values()
         set_intervals = self.create_set_intervals(num_intervals, intervals)
         self.print("set_intervals:\n", set_intervals)
         # Perform validations
@@ -393,25 +503,27 @@ class ShapleyFda:
         # avoid computing them again
         shapley_scores_computed = {
             "model_based": {},
+            "mrmr_based": {},
         }
         covariates_computed = {}
         # For each interval, compute the relevance
-        intervals_relevance = []
         for i_interval in range(num_intervals):
             interval = set_intervals[i_interval]
             self.print("Computing relevance for interval:", interval, "whose index is", i_interval)
             relevance = self.compute_interval_relevance(
-                set_permutations,
-                mapping_abscissa_interval,
-                mean_f,
-                covariance_f,
-                i_interval,
-                compute_model_based_shapley,
-                shapley_scores_computed,
-                covariates_computed,
+                set_permutations=set_permutations,
+                mapping_abscissa_interval=mapping_abscissa_interval,
+                mean_f=mean_f,
+                covariance_f=covariance_f,
+                interval_position=i_interval,
+                covariates_computed=covariates_computed,
+                shapley_scores_computed=shapley_scores_computed,
+                compute_model_based_shapley=compute_model_based_shapley,
+                compute_mrmr_based_shapley=compute_mrmr_based_shapley,
             )
-            result = [interval, relevance]
-            intervals_relevance.append(result)
-            self.shapley_values[0].append((interval[0] + interval[1])/2)
-            self.shapley_values[1]["model_based"].append(relevance)
-        return intervals_relevance
+            results["intervals"].append(interval)
+            results["middle_points"].append((interval[0] + interval[1])/2)
+            results["mrmr_based"].append(relevance["mrmr_based"])
+            results["model_based"].append(relevance["model_based"])
+        self.shapley_values = results.copy()
+        return results
