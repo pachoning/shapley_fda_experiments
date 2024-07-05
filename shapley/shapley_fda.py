@@ -448,19 +448,32 @@ class ShapleyFda:
             mean_value["mrmr_based"] = np.mean(set_differences["mrmr_based"])
         return mean_value
 
-    def plot(self, which="model_based"):
-        if len(self.shapley_values["intervals"]) == 0:
-            raise RuntimeError("Please, run `compute_shapley_value` method before plotting")
+    def plot(self, shapley_object=None, which="model_based"):
+        if not shapley_object is None:
+            object_to_use = shapley_object
         else:
-            x_val = [(x[0] + x[1])/2 for x in self.shapley_values["intervals"]]
+            object_to_use = self.shapley_values
+        if len(object_to_use["intervals"]) == 0:
+            if shapley_object is None:
+                raise RuntimeError("Please, run `compute_shapley_value` method before plotting")
+            else:
+                raise RuntimeError("Please, include `intervals` keyword in `shapley_object`")
+        else:
+            x_val = [(x[0] + x[1])/2 for x in object_to_use["intervals"]]
             if which == "model_based":
-                y_val = [y for y in self.shapley_values["model_based"]]
+                y_val = [y for y in object_to_use["model_based"]]
                 if np.sum(np.isnan(y_val)) == len(y_val):
-                    raise RuntimeError("Please, run `compute_shapley_value` with `compute_model_based_shapley` set to True")
+                    if shapley_object is None:
+                        raise RuntimeError("Please, run `compute_shapley_value` with `compute_model_based_shapley` set to True")
+                    else:
+                        raise RuntimeError("All elements in `model_based` are nan")
             elif  which == "mrmr_based":
                 y_val = [y for y in self.shapley_values["mrmr_based"]]
                 if np.sum(np.isnan(y_val)) == len(y_val):
-                    raise RuntimeError("Please, run `compute_shapley_value` with `compute_mrmr_based_shapley` set to True")
+                    if shapley_object is None:
+                        raise RuntimeError("Please, run `compute_shapley_value` with `compute_mrmr_based_shapley` set to True")
+                    else:
+                        raise RuntimeError("All elements in `mrmr_based` are nan")
             else:
                 raise RuntimeError("`which` argument must be either `model_based` or `mrmr_based`")
             return plt.plot(x_val, y_val, '-bo')
