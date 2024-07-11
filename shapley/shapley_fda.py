@@ -216,7 +216,7 @@ class ShapleyFda:
             matrix_mult=matrix_mult
         )
         total_individuals = self.X.shape[0]
-        # To do: review this part to speed it up. Mw may use the method compute_f
+        # TODO: review this part to speed it up. Mw may use the method compute_f
         for i in range(total_individuals):
             X_i_available_abscissa = np.reshape(
                 self.X[i][position_available_abscissa],
@@ -246,12 +246,12 @@ class ShapleyFda:
 
     def hash_array(self, array):
         sorted_array = np.sort(array)
-        str_hash = ''
+        str_hash = ""
         for position, x in enumerate(sorted_array):
             if position == 0:
                 str_hash = str(x)
             else:
-                str_hash = str_hash + '_' + str(x)
+                str_hash = str_hash + "_" + str(x)
         return str_hash
 
     def compute_model_based(
@@ -295,7 +295,7 @@ class ShapleyFda:
                     shapley_scores_computed[i_pred][hashed_available_intervals] = shapley_score[i_pred]
         return shapley_score
 
-    def  compute_mrmr_based(
+    def  compute_mrmr_r2_based(
             self,
             hashed_available_intervals,
             available_intervals,
@@ -305,7 +305,7 @@ class ShapleyFda:
         ):
         # In the information is already computed, use it
         if hashed_available_intervals in available_intervals_computed:
-            score = shapley_scores_computed["mrmr"][hashed_available_intervals]
+            score = shapley_scores_computed["mrmr_r2"][hashed_available_intervals]
         else:
             # Get the submatrix
             position_available_abscissa = self.get_abscissa_from_intervals(
@@ -327,8 +327,12 @@ class ShapleyFda:
                 relevance = np.mean(np.abs(relevance_matrix[:, -1]))
             score = relevance/redundancy
             # Store the info in memory
-            shapley_scores_computed["mrmr"][hashed_available_intervals] = score
+            shapley_scores_computed["mrmr_r2"][hashed_available_intervals] = score
         return score
+
+    def compute_mrmr_dist_corr_based(self):
+        # TODO: remember to cache info!!
+        return 0
 
     def compute_interval_relevance(
         self,
@@ -340,7 +344,8 @@ class ShapleyFda:
         covariates_computed,
         available_intervals_computed,
         shapley_scores_computed,
-        compute_mrmr_based_shapley,
+        compute_mrmr_r2,
+        compute_mrmr_distance_correlation,
         predict_fn_list,
     ):
         set_differences = dict()
@@ -352,10 +357,15 @@ class ShapleyFda:
             mean_value[i_pred] = np.full(shape=(), fill_value=np.nan)
             empty_dict[i_pred] = dict()
 
-        if compute_mrmr_based_shapley:
-            set_differences["mrmr"] = []
-            mean_value["mrmr"] = np.full(shape=(), fill_value=np.nan)
-            empty_dict["mrmr"] = dict()
+        if compute_mrmr_r2:
+            set_differences["mrmr_r2"] = []
+            mean_value["mrmr_r2"] = np.full(shape=(), fill_value=np.nan)
+            empty_dict["mrmr_r2"] = dict()
+
+        if compute_mrmr_distance_correlation:
+            set_differences["mrmr_distance_correlation"] = []
+            mean_value["mrmr_distance_correlation"] = np.full(shape=(), fill_value=np.nan)
+            empty_dict["mrmr_distance_correlation"] = dict()
 
         # For each permutation
         for i_permutation in set_permutations:
@@ -395,15 +405,18 @@ class ShapleyFda:
                 for key, value in model_based_shapley_score.items():
                     shapley_score_permutation[key][use_interval] = value
 
-                if compute_mrmr_based_shapley:
-                    mrmr_shapley_score = self.compute_mrmr_based(
+                if compute_mrmr_r2:
+                    mrmr_r2_shapley_score = self.compute_mrmr_r2_based(
                         hashed_available_intervals=hashed_available_intervals,
                         available_intervals=available_intervals,
                         mapping_abscissa_interval=mapping_abscissa_interval,
                         available_intervals_computed=available_intervals_computed,
                         shapley_scores_computed=shapley_scores_computed,
                     )
-                    shapley_score_permutation["mrmr"][use_interval] = mrmr_shapley_score
+                    shapley_score_permutation["mrmr_r2"][use_interval] = mrmr_r2_shapley_score
+                if compute_mrmr_distance_correlation:
+                    mrmr_dist_corr_shapley_score = self.compute_mrmr_dist_corr_based()
+                    shapley_score_permutation["mrmr_distance_correlation"][use_interval] = mrmr_dist_corr_shapley_score
                 # Store in cache the permutation at the end of the flow
                 if hashed_available_intervals not in available_intervals_computed:
                     available_intervals_computed.add(hashed_available_intervals)
@@ -435,8 +448,8 @@ class ShapleyFda:
         x_val = object_to_use["middle_points"]
         print()
         n_plots = len(shapley_keys)
-        fig, axs = plt.subplots(n_plots)
-        plt.subplots_adjust(hspace=0.6)
+        fig, axs = plt.subplots(n_plots, 1, figsize=(20, 20))
+        plt.subplots_adjust(hspace=0.5)
         if n_plots == 1:
             y_val = object_to_use[shapley_keys[0]]
             axs.plot(x_val, y_val)
@@ -456,7 +469,8 @@ class ShapleyFda:
     def  get_shapley_strategies(
             self,
             predict_fns,
-            compute_mrmr_based_shapley
+            compute_mrmr_r2,
+            compute_mrmr_distance_correlation,
         ):
             predict_fn_list = []
             strategy = self.get_main_dictionary()
@@ -472,14 +486,16 @@ class ShapleyFda:
                         predict_fn_list.append(predict_fn)
                     else:
                         raise ValueError("All elements of `predict_fns` must be callable objects")
-            # If the only computation is mrmr method, create an empty list
+            # If the only computation is mrmr_r2 method, create an empty list
             else:
-                if not compute_mrmr_based_shapley:
+                if not (compute_mrmr_r2 or compute_mrmr_distance_correlation):
                     str_1 = "`predict_fns` must be either a callable or a list of callable. "
-                    str_2 = "If it is None, then `compute_mrmr_based_shapley` must be set to True"
+                    str_2 = "If it is None, then either `compute_mrmr_r2` or `compute_mrmr_distance_correlation` must be set to True"
                     raise ValueError(str_1 + str_2)
-            if compute_mrmr_based_shapley:
-                    strategy["mrmr"] = []
+            if compute_mrmr_r2:
+                    strategy["mrmr_r2"] = []
+            if compute_mrmr_distance_correlation:
+                    strategy["mrmr_distance_correlation"] = []
             return strategy, predict_fn_list
 
     def compute_shapley_value(
@@ -489,14 +505,16 @@ class ShapleyFda:
             num_intervals=None,
             intervals=None,
             seed=None,
-            compute_mrmr_based_shapley=True,
+            compute_mrmr_r2=True,
+            compute_mrmr_distance_correlation=True,
         ):
         # Create a set of intervals: 
         #       we will treat all the intervals as [a, b), 
         #       except for the las one, which will be [a, b]
         results, predict_fn_list = self.get_shapley_strategies(
             predict_fns=predict_fns,
-            compute_mrmr_based_shapley=compute_mrmr_based_shapley,
+            compute_mrmr_r2=compute_mrmr_r2,
+            compute_mrmr_distance_correlation=compute_mrmr_distance_correlation,
         )
         self.shapley_values = results.copy()
         set_intervals = self.create_set_intervals(num_intervals, intervals)
@@ -522,8 +540,10 @@ class ShapleyFda:
         total_predict_fn = len(predict_fn_list)
         shapley_scores_computed = {i: dict() for i in range(total_predict_fn)}
         available_intervals_computed = set()
-        if compute_mrmr_based_shapley:
-            shapley_scores_computed["mrmr"] = dict()
+        if compute_mrmr_r2:
+            shapley_scores_computed["mrmr_r2"] = dict()
+        if compute_mrmr_distance_correlation:
+            shapley_scores_computed["mrmr_distance_correlation"] = dict()
         covariates_computed = dict()
         # For each interval, compute the relevance
         for i_interval in range(num_intervals):
@@ -538,7 +558,8 @@ class ShapleyFda:
                 covariates_computed=covariates_computed,
                 available_intervals_computed=available_intervals_computed,
                 shapley_scores_computed=shapley_scores_computed,
-                compute_mrmr_based_shapley=compute_mrmr_based_shapley,
+                compute_mrmr_r2=compute_mrmr_r2,
+                compute_mrmr_distance_correlation=compute_mrmr_distance_correlation,
                 predict_fn_list=predict_fn_list,
             )
             results["intervals"].append(interval)
