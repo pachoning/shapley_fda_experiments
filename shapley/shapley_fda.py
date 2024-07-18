@@ -364,11 +364,11 @@ class ShapleyFda:
                     H=H_matrix,
                     D=sum_distance_diff_covariable,
                 )
-                dist_covariance_xy = self.compute_squared_mean_of_products(
+                dist_covariance_xy = self.compute_sq_root_mean_of_products(
                     X1=distance_covariate_centered,
                     X2=distance_target_centered,
                 )
-                dist_covariance_xx = self.compute_squared_mean_of_products(
+                dist_covariance_xx = self.compute_sq_root_mean_of_products(
                     X1=distance_covariate_centered,
                     X2=distance_covariate_centered,
                 )
@@ -377,7 +377,7 @@ class ShapleyFda:
             shapley_scores_computed["mRMR_distance_correlation"][hashed_available_intervals] = score
         return score
 
-    def compute_squared_mean_of_products(
+    def compute_sq_root_mean_of_products(
         self,
         X1,
         X2,
@@ -733,7 +733,7 @@ class ShapleyFda:
                 H=H_matrix,
                 D=distance_diff_target,
             )
-            dist_covariance_yy = self.compute_squared_mean_of_products(
+            dist_covariance_yy = self.compute_sq_root_mean_of_products(
                 X1=distance_target_centered,
                 X2=distance_target_centered,
             )
