@@ -306,7 +306,7 @@ class ShapleyFda:
         ):
         # In the information is already computed, use it
         if hashed_available_intervals in available_intervals_computed:
-            score = shapley_scores_computed["mrmr_r2"][hashed_available_intervals]
+            score = shapley_scores_computed["mRMR_r2"][hashed_available_intervals]
         else:
             # Get the submatrix
             position_available_abscissa = self.get_abscissa_from_intervals(
@@ -328,8 +328,66 @@ class ShapleyFda:
                 relevance = np.mean(np.abs(relevance_matrix[:, -1]))
             score = relevance/redundancy
             # Store the info in memory
-            shapley_scores_computed["mrmr_r2"][hashed_available_intervals] = score
+            shapley_scores_computed["mRMR_r2"][hashed_available_intervals] = score
         return score
+
+    def compute_mrmr_dist_corr_based(
+            self,
+            hashed_available_intervals,
+            available_intervals,
+            available_intervals_computed,
+            shapley_scores_computed,
+            H_matrix,
+            dict_distance_diff_covariable,
+            distance_target_centered,
+            dist_covariance_yy,
+        ):
+        # If the information is in cache, use it
+        if hashed_available_intervals in available_intervals_computed:
+            score = shapley_scores_computed["mRMR_distance_correlation"][hashed_available_intervals]
+        # If the information is not in cache, compute it
+        else:
+            score = 0
+            total_available_intervals = available_intervals.shape[0]
+            # If we are not considering the empty set, compute the score
+            if total_available_intervals > 0:
+                total_individuals = self.X.shape[0]
+                sum_distance_diff_covariable = np.full(
+                    shape=(total_individuals, total_individuals),
+                    fill_value=0.0,
+                    dtype="float32",
+                )
+                for current_interval in available_intervals:
+                    distance_diff_current_interval = dict_distance_diff_covariable[current_interval]
+                    sum_distance_diff_covariable = np.add(sum_distance_diff_covariable, distance_diff_current_interval)
+                distance_covariate_centered = self.double_center_matix(
+                    H=H_matrix,
+                    D=sum_distance_diff_covariable,
+                )
+                dist_covariance_xy = self.compute_squared_mean_of_products(
+                    X1=distance_covariate_centered,
+                    X2=distance_target_centered,
+                )
+                dist_covariance_xx = self.compute_squared_mean_of_products(
+                    X1=distance_covariate_centered,
+                    X2=distance_covariate_centered,
+                )
+                denominator = np.sqrt(dist_covariance_xx * dist_covariance_yy)
+                score = dist_covariance_xy/denominator
+            shapley_scores_computed["mRMR_distance_correlation"][hashed_available_intervals] = score
+        return score
+
+    def compute_squared_mean_of_products(
+        self,
+        X1,
+        X2,
+    ):
+        product = np.multiply(
+            X1,
+            X2,
+        )
+        result = np.sqrt(np.mean(product))
+        return result
 
     def compute_l2_norm(
         self,
@@ -414,54 +472,6 @@ class ShapleyFda:
             dict_distance_diff_cov[i_interval] = distance_matrix_covariate
         return dict_distance_diff_cov, distance_diff_target
 
-    def compute_mrmr_dist_corr_based(
-            self,
-            hashed_available_intervals,
-            available_intervals,
-            available_intervals_computed,
-            shapley_scores_computed,
-            H_matrix,
-            dict_distance_diff_covariable,
-            distance_target_centered,
-            dist_covariance_yy,
-        ):
-        # If the information is in cache, use it
-        if hashed_available_intervals in available_intervals_computed:
-            score = shapley_scores_computed["mrmr_distance_correlation"][hashed_available_intervals]
-        # If the information is not in cache, compute it
-        else:
-            score = 0
-            total_available_intervals = available_intervals.shape[0]
-            # If we are not considering the empty set, compute the score
-            if total_available_intervals > 0:
-                total_individuals = self.X.shape[0]
-                sum_distance_diff_covariable = np.full(
-                    shape=(total_individuals, total_individuals),
-                    fill_value=0.0,
-                    dtype="float32",
-                )
-                for current_interval in available_intervals:
-                    distance_diff_current_interval = dict_distance_diff_covariable[current_interval]
-                    sum_distance_diff_covariable = np.add(sum_distance_diff_covariable, distance_diff_current_interval)
-                distance_covariate_centered = self.double_center_matix(
-                    H=H_matrix,
-                    D=sum_distance_diff_covariable,
-                )
-                product_xy_matrix = np.multiply(
-                    distance_covariate_centered,
-                    distance_target_centered,
-                )
-                product_xx_matrix = np.multiply(
-                    distance_covariate_centered,
-                    distance_covariate_centered,
-                )
-                dist_covariance_xy = np.sqrt(np.mean(product_xy_matrix))
-                dist_covariance_xx = np.sqrt(np.mean(product_xx_matrix))
-                denominator = np.sqrt(dist_covariance_xx * dist_covariance_yy)
-                score = dist_covariance_xy/denominator
-            shapley_scores_computed["mrmr_distance_correlation"][hashed_available_intervals] = score
-        return score
-
     def compute_interval_relevance(
         self,
         set_permutations,
@@ -490,14 +500,14 @@ class ShapleyFda:
             empty_dict[i_pred] = dict()
 
         if compute_mrmr_r2:
-            set_differences["mrmr_r2"] = []
-            mean_value["mrmr_r2"] = np.full(shape=(), fill_value=np.nan)
-            empty_dict["mrmr_r2"] = dict()
+            set_differences["mRMR_r2"] = []
+            mean_value["mRMR_r2"] = np.full(shape=(), fill_value=np.nan)
+            empty_dict["mRMR_r2"] = dict()
 
         if compute_mrmr_distance_correlation:
-            set_differences["mrmr_distance_correlation"] = []
-            mean_value["mrmr_distance_correlation"] = np.full(shape=(), fill_value=np.nan)
-            empty_dict["mrmr_distance_correlation"] = dict()
+            set_differences["mRMR_distance_correlation"] = []
+            mean_value["mRMR_distance_correlation"] = np.full(shape=(), fill_value=np.nan)
+            empty_dict["mRMR_distance_correlation"] = dict()
 
         # For each permutation
         for i_permutation in set_permutations:
@@ -545,7 +555,7 @@ class ShapleyFda:
                         available_intervals_computed=available_intervals_computed,
                         shapley_scores_computed=shapley_scores_computed,
                     )
-                    shapley_score_permutation["mrmr_r2"][use_interval] = mrmr_r2_shapley_score
+                    shapley_score_permutation["mRMR_r2"][use_interval] = mrmr_r2_shapley_score
                 if compute_mrmr_distance_correlation:
                     mrmr_dist_corr_shapley_score = self.compute_mrmr_dist_corr_based(
                         hashed_available_intervals=hashed_available_intervals,
@@ -558,7 +568,7 @@ class ShapleyFda:
                         dist_covariance_yy=dist_covariance_yy,
                     )
 
-                    shapley_score_permutation["mrmr_distance_correlation"][use_interval] = mrmr_dist_corr_shapley_score
+                    shapley_score_permutation["mRMR_distance_correlation"][use_interval] = mrmr_dist_corr_shapley_score
                 # Store in cache the permutation at the end of the flow
                 if hashed_available_intervals not in available_intervals_computed:
                     available_intervals_computed.add(hashed_available_intervals)
@@ -635,9 +645,9 @@ class ShapleyFda:
                     str_2 = "If it is None, then either `compute_mrmr_r2` or `compute_mrmr_distance_correlation` must be set to True"
                     raise ValueError(str_1 + str_2)
             if compute_mrmr_r2:
-                    strategy["mrmr_r2"] = []
+                    strategy["mRMR_r2"] = []
             if compute_mrmr_distance_correlation:
-                    strategy["mrmr_distance_correlation"] = []
+                    strategy["mRMR_distance_correlation"] = []
             return strategy, predict_fn_list
 
     def build_double_centering_matrix(
@@ -710,10 +720,10 @@ class ShapleyFda:
         H_matrix = None
 
         if compute_mrmr_r2:
-            shapley_scores_computed["mrmr_r2"] = dict()
+            shapley_scores_computed["mRMR_r2"] = dict()
 
         if compute_mrmr_distance_correlation:
-            shapley_scores_computed["mrmr_distance_correlation"] = dict()
+            shapley_scores_computed["mRMR_distance_correlation"] = dict()
             dict_distance_diff_covariable, distance_diff_target = self.compute_distance_difference(
                 intervals=set_intervals,
                 mapping_abscissa_interval=mapping_abscissa_interval,
@@ -723,11 +733,10 @@ class ShapleyFda:
                 H=H_matrix,
                 D=distance_diff_target,
             )
-            product_yy_matrix = np.multiply(
-                distance_target_centered,
-                distance_target_centered,
+            dist_covariance_yy = self.compute_squared_mean_of_products(
+                X1=distance_target_centered,
+                X2=distance_target_centered,
             )
-            dist_covariance_yy = np.sqrt(np.mean(product_yy_matrix))
 
         # For each interval, compute the relevance
         for i_interval in range(num_intervals):
