@@ -227,9 +227,9 @@ class ShapleyFda:
             recomputed_covariate[i][position_non_available_abscissa] = conditional_expectation_i
         return recomputed_covariate
 
-    def obtain_score(self, covariate, target, predict_fn_list):
+    def obtain_score(self, covariate, target, predict_fn_list, labels_predict_fns_list):
         score_dict = {}
-        for i_pred, predict_fn in enumerate(predict_fn_list):
+        for  predict_fn, label in zip(predict_fn_list, labels_predict_fns_list):
             prediction = predict_fn(covariate)
             diff_target_pred = np.subtract(target, prediction)
             diff_target_pred_sq = np.power(diff_target_pred, 2)
@@ -242,7 +242,7 @@ class ShapleyFda:
             r2_c = r2
             if r2_c < 0:
                 r2_c = 0
-            score_dict[i_pred] = r2_c
+            score_dict[label] = r2_c
         return score_dict
 
     def hash_array(self, array):
@@ -264,6 +264,7 @@ class ShapleyFda:
         available_intervals_computed,
         shapley_scores_computed,
         predict_fn_list,
+        labels_predict_fns_list,
         mean_f,
         covariance_f,
         covariates_computed,
@@ -273,8 +274,8 @@ class ShapleyFda:
         total_predict_fn = len(predict_fn_list)
         if total_predict_fn > 0:
             if hashed_available_intervals in available_intervals_computed:
-                for i_pred in range(total_predict_fn):
-                    shapley_score[i_pred] = shapley_scores_computed[i_pred][hashed_available_intervals]
+                for label in labels_predict_fns_list:
+                    shapley_score[label] = shapley_scores_computed[label][hashed_available_intervals]
             else:
                 # Recreate the set of functions without considering the interval
                 covariate_recreated = self.recompute_covariate(
@@ -289,11 +290,12 @@ class ShapleyFda:
                     covariate_recreated,
                     self.target,
                     predict_fn_list,
+                    labels_predict_fns_list
                 )
                 # Store info in cache
                 covariates_computed[hashed_available_intervals] = covariate_recreated
-                for i_pred in range(total_predict_fn):
-                    shapley_scores_computed[i_pred][hashed_available_intervals] = shapley_score[i_pred]
+                for label in labels_predict_fns_list:
+                    shapley_scores_computed[label][hashed_available_intervals] = shapley_score[label]
         return shapley_score
 
     def  compute_mrmr_r2_based(
@@ -412,7 +414,9 @@ class ShapleyFda:
         trapezoid_base = np.reshape(diff_available_filter, newshape=(-1, 1))
         # Area of the trapezoid
         area = np.matmul(trapezoid_height, trapezoid_base)
-        return np.sqrt(area)
+        # The squared norm is the integral. The integral is approximated by the area of the trapeziod
+        l2_norm = np.sqrt(area)
+        return l2_norm
 
     def double_center_matix(self, H, D):
         result = np.matmul(H, np.matmul(D, H))
@@ -485,6 +489,7 @@ class ShapleyFda:
         compute_mrmr_r2,
         compute_mrmr_distance_correlation,
         predict_fn_list,
+        labels_predict_fns_list,
         dict_distance_diff_covariable,
         distance_target_centered,
         dist_covariance_yy,
@@ -493,11 +498,12 @@ class ShapleyFda:
         set_differences = dict()
         mean_value = dict()
         empty_dict = dict()
-        total_predict_fn = len(predict_fn_list)
-        for i_pred in range(total_predict_fn):
-            set_differences[i_pred] = []
-            mean_value[i_pred] = np.full(shape=(), fill_value=np.nan)
-            empty_dict[i_pred] = dict()
+        #total_predict_fn = len(predict_fn_list)
+
+        for label in labels_predict_fns_list:
+            set_differences[label] = []
+            mean_value[label] = np.full(shape=(), fill_value=np.nan)
+            empty_dict[label] = dict()
 
         if compute_mrmr_r2:
             set_differences["mRMR_r2"] = []
@@ -540,6 +546,7 @@ class ShapleyFda:
                         available_intervals_computed=available_intervals_computed,
                         shapley_scores_computed=shapley_scores_computed,
                         predict_fn_list=predict_fn_list,
+                        labels_predict_fns_list=labels_predict_fns_list,
                         mean_f=mean_f,
                         covariance_f=covariance_f,
                         covariates_computed=covariates_computed,
@@ -618,9 +625,43 @@ class ShapleyFda:
         }
         return main_dic
 
+    def create_labels(
+        self,
+        labels_fns,
+        predict_fns,
+    ):
+        labels = []
+        if isinstance(predict_fns, list):
+            if labels_fns is None:
+                total_fns = len(predict_fns)
+                labels = [i for i in range(total_fns)]
+            elif isinstance(labels_fns, list):
+                if len(labels_fns) != len(np.unique(labels_fns)):
+                    raise ValueError("`labels_fns` must contain unique values")
+                if len(labels_fns) == len(predict_fns):
+                    labels = [lb for lb in labels_fns]
+                else:
+                    raise ValueError("`labels_fns` must have the same length as `predict_fns`")
+            else:
+                raise ValueError("`labels_fns` must be either a list or None")
+        elif callable(predict_fns):
+            if labels_fns is None:
+                labels = [0]
+            elif isinstance(labels_fns, list):
+                if len(labels_fns) > 1:
+                    raise ValueError("`labels_fns` must be None, a string or a list of length 1")
+                else:
+                    labels = [labels_fns[0]]
+            elif isinstance(labels_fns, str) or isinstance(labels_fns, int) or isinstance(labels_fns, float):
+                labels = [labels_fns]
+            else:
+                raise ValueError("`must be either None, a string a number (or a list of length 1)`")
+        return labels
+
     def  get_shapley_strategies(
             self,
             predict_fns,
+            labels,
             compute_mrmr_r2,
             compute_mrmr_distance_correlation,
         ):
@@ -628,13 +669,13 @@ class ShapleyFda:
             strategy = self.get_main_dictionary()
             # If it is a callable, create a list with a single elements
             if callable(predict_fns):
-                strategy[0] = []
+                strategy[labels[0]] = []
                 predict_fn_list.append(predict_fns)
             # If it is a list of callables, create multiple lists
             elif isinstance(predict_fns, list):
-                for i_pred, predict_fn in enumerate(predict_fns):
+                for predict_fn, label_fn in zip(predict_fns, labels):
                     if callable(predict_fn):
-                        strategy[i_pred] = []
+                        strategy[label_fn] = []
                         predict_fn_list.append(predict_fn)
                     else:
                         raise ValueError("All elements of `predict_fns` must be callable objects")
@@ -673,17 +714,24 @@ class ShapleyFda:
             self,
             num_permutations,
             predict_fns=None,
+            labels_fns=None,
             num_intervals=None,
             intervals=None,
             seed=None,
             compute_mrmr_r2=True,
             compute_mrmr_distance_correlation=True,
         ):
+        # Create labels
+        labels_predict_fns_list = self.create_labels(
+            labels_fns=labels_fns,
+            predict_fns=predict_fns,
+        )
         # Create a set of intervals: 
         #       we will treat all the intervals as [a, b), 
         #       except for the las one, which will be [a, b]
         results, predict_fn_list = self.get_shapley_strategies(
             predict_fns=predict_fns,
+            labels=labels_predict_fns_list,
             compute_mrmr_r2=compute_mrmr_r2,
             compute_mrmr_distance_correlation=compute_mrmr_distance_correlation,
         )
@@ -709,8 +757,10 @@ class ShapleyFda:
         covariance_f = np.cov(self.X, rowvar=False, bias=True)
         # shapley_scores_computed is used to save the scores (shapley values) with the aim to save time since we
         # avoid computing them again
-        total_predict_fn = len(predict_fn_list)
-        shapley_scores_computed = {i: dict() for i in range(total_predict_fn)}
+        main_dict = self.get_main_dictionary()
+        main_dict_keys = main_dict.keys()
+        results_keys = results.keys()
+        shapley_scores_computed = {k: dict() for k in results_keys if not k in main_dict_keys}
         covariates_computed = dict()
         available_intervals_computed = set()
         distance_diff_target = None
@@ -719,11 +769,7 @@ class ShapleyFda:
         dict_distance_diff_covariable = dict()
         H_matrix = None
 
-        if compute_mrmr_r2:
-            shapley_scores_computed["mRMR_r2"] = dict()
-
         if compute_mrmr_distance_correlation:
-            shapley_scores_computed["mRMR_distance_correlation"] = dict()
             dict_distance_diff_covariable, distance_diff_target = self.compute_distance_difference(
                 intervals=set_intervals,
                 mapping_abscissa_interval=mapping_abscissa_interval,
@@ -754,6 +800,7 @@ class ShapleyFda:
                 compute_mrmr_r2=compute_mrmr_r2,
                 compute_mrmr_distance_correlation=compute_mrmr_distance_correlation,
                 predict_fn_list=predict_fn_list,
+                labels_predict_fns_list=labels_predict_fns_list,
                 dict_distance_diff_covariable=dict_distance_diff_covariable,
                 distance_target_centered=distance_target_centered,
                 dist_covariance_yy=dist_covariance_yy,
