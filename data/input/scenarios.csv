@@ -4,11 +4,12 @@ scenario_id,type_covariate,type_transformation,eta,sample_size
 9,fourier_expansion,non_linear_unimodal,0.05,200
 13,fourier_expansion,non_linear_bimodal,0.05,200
 18,fourier_expansion,linear_discrete,0.05,500
-21,symmetric_fourier_expanansion,linear_unimodal,0.05,200
-25,symmetric_fourier_expanansion,linear_bimodal,0.05,200
-29,symmetric_fourier_expanansion,non_linear_unimodal,0.05,200
-33,symmetric_fourier_expanansion,non_linear_bimodal,0.05,200
-37,symmetric_fourier_expanansion,linear_discrete,0.05,200
+21,symmetric_fourier_expansion,linear_unimodal,0.05,200
+   symmetric_fourier_expansion
+25,symmetric_fourier_expansion,linear_bimodal,0.05,200
+29,symmetric_fourier_expansion,non_linear_unimodal,0.05,200
+33,symmetric_fourier_expansion,non_linear_bimodal,0.05,200
+37,symmetric_fourier_expansion,linear_discrete,0.05,200
 41,brownian_trend,linear_unimodal,0.05,200
 45,brownian_trend,linear_bimodal,0.05,200
 49,brownian_trend,non_linear_unimodal,0.05,200
