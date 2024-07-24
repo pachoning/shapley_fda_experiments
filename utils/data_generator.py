@@ -6,7 +6,7 @@ import pandas as pd
 import pickle
 
 # Simulate data only for given scenarios
-scenarios_to_account = [2]
+scenarios_to_account = None
 # Prepare some global parameters used to generate data
 n_basis_simulated_data = 31
 sd_x_serie = 0.01
@@ -20,7 +20,7 @@ slope_brownian = 1
 # data paths
 input_data_path = os.path.join(data_path, "input")
 output_data_path = os.path.join(data_path, "output")
-scenarios_file = "scenarios_braga.csv"
+scenarios_file = "scenarios.csv"
 
 # Explore dataframe that contains the scenarios
 df_scenarios = pd.read_csv(os.path.join(input_data_path, scenarios_file))
