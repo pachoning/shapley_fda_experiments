@@ -1,5 +1,6 @@
 from skfda.misc.operators import LinearDifferentialOperator
 from skfda.misc.regularization import L2Regularization
+from skfda.representation.grid import FDataGrid
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
@@ -36,6 +37,16 @@ def predict_no_verbose_squeeze(predict_fn):
         predicted_value = predict_fn(*args, verbose=False, **kwargs)
         return predicted_value[:, 0]
     return inner
+
+def predict_np_reshape(grid_points, domain_range, basis, predict_fn):
+    def inner_predict_from_np(X):
+        X_to_grid = FDataGrid(data_matrix=X, grid_points=grid_points, domain_range=domain_range)
+        X_to_basis = X_to_grid.to_basis(basis)
+        prediction = predict_fn(X_to_basis)
+        if len(prediction.shape) == 1:
+            prediction = np.reshape(prediction, newshape=(-1, 1))
+        return prediction
+    return inner_predict_from_np
 
 def l2_reg(lambda_value):
     operator = L2Regularization(
