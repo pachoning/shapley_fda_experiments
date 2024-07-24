@@ -5,7 +5,6 @@ scenario_id,type_covariate,type_transformation,eta,sample_size
 13,fourier_expansion,non_linear_bimodal,0.05,200
 18,fourier_expansion,linear_discrete,0.05,500
 21,symmetric_fourier_expansion,linear_unimodal,0.05,200
-   symmetric_fourier_expansion
 25,symmetric_fourier_expansion,linear_bimodal,0.05,200
 29,symmetric_fourier_expansion,non_linear_unimodal,0.05,200
 33,symmetric_fourier_expansion,non_linear_bimodal,0.05,200
