@@ -9,32 +9,55 @@ class HyperOptScikitFda:
         self.abscissa_points = abscissa_points
         self.domain_range = domain_range
 
-    def search(self, params, X_train, y_train, X_val, y_val):
+    def search(
+        self,
+        X_train,
+        y_train,
+        X_val,
+        y_val,
+        params=None,
+        basis=None,
+        n_basis_list=[],
+    ):
+        results = []
         model = self.cls_estimator()
-        
-        if isinstance(X_train, FDataBasis):
-            X_train_np = X_train(self.abscissa_points)
-            X_val_np = X_val(self.abscissa_points)
-            X_np = np.concatenate((X_train_np, X_val_np))
-            X_grid = FDataGrid(
-                data_matrix=X_np,
-                grid_points=self.abscissa_points,
-                domain_range=self.domain_range
-            )
-            X = X_grid.to_basis(X_train.basis)
-        else:
-            X = np.concatenate((X_train, X_val))
+        X_np = np.concatenate((X_train, X_val))
         y = np.concatenate((y_train, y_val))
-        zeros_vector = np.zeros(X_train.shape[0])
-        ones_vector = np.ones(X_val.shape[0])
-        all_vector = np.concatenate((zeros_vector, ones_vector))
+        train_vector = np.full(shape=X_train.shape[0], fill_value=-1, dtype=np.int32)
+        validation_vector = np.full(shape=X_val.shape[0], fill_value=0, dtype=np.int32)
+        all_vector = np.concatenate((train_vector, validation_vector))
         ps = PredefinedSplit(all_vector)
-        grid_search = GridSearchCV(
-            estimator=model,
-            param_grid=params,
-            cv=ps,
-            scoring="neg_mean_squared_error",
-            return_train_score=True,
-        )
-            
-        return grid_search.fit(X, y)
+        if basis is None:
+            total_basis = 1
+        else:
+            total_basis = len(n_basis_list)
+        i_basis = 0
+        while i_basis < total_basis:
+            if basis:
+                n_basis = n_basis_list[i_basis]
+                basis_representation = basis(
+                    n_basis=n_basis,
+                    domain_range=self.domain_range,
+                )
+                X_grid = FDataGrid(
+                    data_matrix=X_np,
+                    grid_points=self.abscissa_points,
+                    domain_range=self.domain_range
+                )
+                X = X_grid.to_basis(basis_representation)
+            else:
+                X = X_np.copy()
+            if params is None:
+                params = {}
+            grid_search = GridSearchCV(
+                estimator=model,
+                param_grid=params,
+                cv=ps,
+                scoring="neg_mean_squared_error",
+                return_train_score=True,
+                refit=False,
+            )
+            gs_results = grid_search.fit(X, y)
+            results.append(gs_results)
+            i_basis += 1
+        return results
