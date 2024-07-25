@@ -79,9 +79,7 @@ class ShapleyFda:
             )
             intervals = np.stack((intervals_lower_bound, intervals_upper_bound), axis=1)
         elif intervals:
-            # TODO: if the user provides intervals, standardise it so that
-            # it has the same shape as if it were created by the previous statement
-            pass
+            raise NotImplemented("`Please, provide num_intervals while we implement this part`")
         return intervals
 
     def create_permutations(self, num_intervals, num_permutations, seed):
@@ -217,7 +215,6 @@ class ShapleyFda:
             matrix_mult=matrix_mult
         )
         total_individuals = self.X.shape[0]
-        # TODO: review this part to speed it up. Mw may use the method compute_f
         for i in range(total_individuals):
             X_i_available_abscissa = np.reshape(
                 self.X[i][position_available_abscissa],
