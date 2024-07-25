@@ -62,9 +62,11 @@ class HyperOptFnn(keras_tuner.HyperModel):
         n_bases_hidden = [
             hp.Int(f"units_{i_layer}", min_value=5, max_value=15, step=1) for i_layer in range(num_hidden_layers)
         ]
-        bases_types_hidden = [
-            hp.Choice(f"basis_type_{i_layer}", ["Fourier", "Legendre"]) for i_layer in range(num_hidden_layers)
-        ]
+        # To speed up simulations, use Legendre
+        #bases_types_hidden = [
+        #    hp.Choice(f"basis_type_{i_layer}", ["Fourier", "Legendre"]) for i_layer in range(num_hidden_layers)
+        #]
+        bases_types_hidden = ["Legendre" for i_layer in range(num_hidden_layers)]
 
         hidden_dense_layers = self.build_hidden_dense_layers(
             input_layer=hidden_layer_input,
@@ -73,7 +75,9 @@ class HyperOptFnn(keras_tuner.HyperModel):
             bases_types=bases_types_hidden,
         )
         n_bases_output = hp.Int("units_output", min_value=1, max_value=15, step=1)
-        basis_type_output = hp.Choice("basis_type_output", ["Fourier", "Legendre"])
+        # To speed up simulations, use Legendre
+        #basis_type_output = hp.Choice("basis_type_output", ["Fourier", "Legendre"])
+        basis_type_output = "Legendre"
         output_layer_options = {
             "n_neurons": 1,
             "basis_options": {
