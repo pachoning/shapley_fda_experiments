@@ -1,3 +1,4 @@
+from utils.logger import logger
 from data import data_path
 from hyperopt.fnn import HyperOptFnn
 from hyperopt.sklearn_gridsearch import HyperOptScikitFda
@@ -27,9 +28,11 @@ if scenarios_list is None:
 total_scenarios = len(scenarios_list)
 
 for i_sim in range(ini_simulations, end_simulations):
-    print(f"Working on simulation {i_sim + 1} out of {end_simulations}")
+    msg = f"Working on simulation {i_sim + 1} out of {end_simulations}."
+    logger.info(msg)
     for i_scenario, scenario_path in enumerate(scenarios_list):
-        print(f"\tWorking on scenario_id {scenario_path}. {i_scenario + 1} out of {total_scenarios}")
+        msg = f"\tWorking on scenario_id {scenario_path}. {i_scenario + 1} out of {total_scenarios}."
+        logger.info(msg)
         predict_fn_list = []
         labels_fns_list = []
         full_path = os.path.join(simulated_data_path, scenario_path)
@@ -58,7 +61,8 @@ for i_sim in range(ini_simulations, end_simulations):
         )
         ########## Linear model
         if get_lm_results:
-            print("\t\tFitting linear model")
+            msg = f"\t\tFitting linear model"
+            logger.info(msg)
             hyperopt_lm = HyperOptScikitFda(
                 LinearRegression,
                 abscissa_points=abscissa_points,
@@ -103,7 +107,8 @@ for i_sim in range(ini_simulations, end_simulations):
                     pickle.dump(r2_test_lm, f_r2_lm)
         ########## KNN
         if get_knn_results:
-            print("\t\tFitting knn model")
+            msg = "\t\tFitting knn model"
+            logger.info(msg)
             hyperopt_knn = HyperOptScikitFda(
                 KNeighborsRegressor,
                 abscissa_points=abscissa_points,
@@ -132,7 +137,8 @@ for i_sim in range(ini_simulations, end_simulations):
                     pickle.dump(r2_test_knn, f_r2_knn)
         ########## FNN
         if get_fnn_results:
-            print("\t\tFitting fnn model")
+            msg = "\t\tFitting fnn model"
+            logger.info(msg)
             hyperopt_fnn = HyperOptFnn(
                 input_shape=(X_train.shape[1], 1),
                 resolution=X_train.shape[1]
@@ -179,7 +185,8 @@ for i_sim in range(ini_simulations, end_simulations):
             with open(r2_test_fnn_file, 'wb') as f_r2_fnn:
                     pickle.dump(r2_test_fnn, f_r2_fnn)
         ########## Shapley value
-        print("\t\tComputing Shapley value")
+        msg = "\t\tComputing Shapley value"
+        logger.info(msg)
         shapley_fda_knn = ShapleyFda(
             X=X_test,
             abscissa_points=abscissa_points,
