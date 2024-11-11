@@ -445,8 +445,8 @@ class ShapleyFda:
                 i_interval,
                 mapping_abscissa_interval,
             )
-            current_abcissa = self.abscissa_points[position_current_abscissa]
-            f_current_abscissa = self.compute_f(current_abcissa)
+            current_abscissa = self.abscissa_points[position_current_abscissa]
+            f_current_abscissa = self.compute_f(current_abscissa)
             i_ind = 0
             # Compute distances matrices (covariate and target)
             while i_ind < total_individuals:
@@ -458,7 +458,7 @@ class ShapleyFda:
                     target_j = np.squeeze(target[j_ind, :])
                     diff_covariate_ij = np.subtract(f_i, f_j)
                     distance_covariate_ij = self.compute_l2_norm(
-                        abscissa_points=current_abcissa,
+                        abscissa_points=current_abscissa,
                         X=diff_covariate_ij,
                     )
                     distance_matrix_covariate[i_ind, j_ind] = distance_covariate_ij
@@ -579,6 +579,8 @@ class ShapleyFda:
             # Compute the differnece of scores
             for key in shapley_score_permutation.keys():
                 diff = shapley_score_permutation[key][True] - shapley_score_permutation[key][False]
+                if diff < 0:
+                    diff = 0
                 set_differences[key].append(diff)
 
         # Compute the mean value
