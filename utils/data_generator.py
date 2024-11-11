@@ -19,8 +19,8 @@ slope_brownian = 1
 
 # data paths
 input_data_path = os.path.join(data_path, "input")
-output_data_path = os.path.join(data_path, "output")
-scenarios_file = "scenarios.csv"
+output_data_path = os.path.join(data_path, "data_all_scenarios")
+scenarios_file = "scenarios_all.csv"
 
 # Explore dataframe that contains the scenarios
 df_scenarios = pd.read_csv(os.path.join(input_data_path, scenarios_file))
@@ -47,7 +47,7 @@ for _, scenario in df_scenarios.iterrows():
         output_dir = os.path.join(output_data_path, f"scenario_{scenario_id}")
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        for i_sim in range(num_simulations):
+        for i_sim in range(ini_simulations, end_simulations):
             # Simulate
             X, phi_X, epsilon, beta_data, col_indexes_ld, target = fda_simulator.simulate(
                 type_covariate=type_covariate,
