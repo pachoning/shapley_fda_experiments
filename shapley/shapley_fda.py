@@ -1,6 +1,7 @@
 from math import factorial
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+import time
 
 
 class ShapleyFda:
@@ -734,6 +735,7 @@ class ShapleyFda:
             compute_mrmr_r2=compute_mrmr_r2,
             compute_mrmr_distance_correlation=compute_mrmr_distance_correlation,
         )
+        initial_time = time.time()
         self.shapley_values = results.copy()
         set_intervals = self.create_set_intervals(num_intervals, intervals)
         self.print("set_intervals:\n", set_intervals)
@@ -810,4 +812,5 @@ class ShapleyFda:
             for key, value in relevance.items():
                 results[key].append(value)
         self.shapley_values = results.copy()
+        results["execution_time"] = time.time() - initial_time
         return results
