@@ -176,6 +176,7 @@ def plot_shapley_value(
         plot_v_line=True,
         display_legend=True,
         display_legend_below=True,
+        display_legend_top=False,
     ):
     # First, we change the name of the keys
     # Round to 4 decimals the middle_points and rename the keys
@@ -253,6 +254,17 @@ def plot_shapley_value(
                 bbox_to_anchor=(0.5, -0.05),
                 fancybox=True,
                 shadow=True,
+                ncol=len(new_obj_keys),
+            )
+        elif display_legend_top:
+            plt.legend(
+                handles=[Line2D([], [], color=col, lw=2.5) for col in colors],
+                labels=function_names,
+                loc='upper center',
+                bbox_to_anchor=(0.5, 1.1),
+                fancybox=True,
+                shadow=True,
+                frameon=False,
                 ncol=len(new_obj_keys),
             )
         else:
