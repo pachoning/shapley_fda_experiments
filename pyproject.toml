@@ -32,6 +32,7 @@ packages = [
     "notebooks",
     "shapley",
     "utils",
+    "matplotlib"
 ]
 py-modules = ["__init__"]
 include-package-data = true
