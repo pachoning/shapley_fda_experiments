@@ -146,19 +146,6 @@ class ShapleyFda:
             set_abscissa.extend(abscissa_interval.tolist())
         return np.array(set_abscissa, dtype=np.int64)
 
-    def conditional_expectation(
-            self,
-            mean_1,
-            mean_2,
-            matrix_mult
-        ):
-        def inner_conditional_expectation(x_2):
-            diff = np.subtract(x_2, mean_2)
-            vector_mult = np.dot(matrix_mult, diff)
-            result = np.add(mean_1, vector_mult)
-            return result
-        return inner_conditional_expectation
-
     def recompute_covariate(
             self,
             available_intervals,
@@ -167,12 +154,10 @@ class ShapleyFda:
             mean_f,
             covariance_f
         ):
-        recomputed_covariate = np.empty(shape=self.X.shape)
         # For available_intervals, use real values
         position_available_abscissa = self.get_abscissa_from_intervals(available_intervals, mapping_abscissa_interval)
         available_abscissa = self.abscissa_points[position_available_abscissa]
         f_available_abscissa = self.compute_f(available_abscissa)
-        recomputed_covariate[:, position_available_abscissa] = f_available_abscissa
         # For non_available_intervals, use the conditional expectation
         position_non_available_abscissa = self.get_abscissa_from_intervals(
             non_available_intervals,
@@ -186,12 +171,12 @@ class ShapleyFda:
             non_available_abscissa.tolist()
         )
         # Get main statistics to compute conditional expetation
+        ones_vector = np.full(shape=(self.X.shape[0], 1), fill_value=1)
         mean_available_abscissa = mean_f[position_available_abscissa]
         mean_non_available_abscissa = mean_f[position_non_available_abscissa]
         covariance_mix = covariance_f[position_non_available_abscissa, :][:, position_available_abscissa]
         covariance_available_abscissa = covariance_f[position_available_abscissa, :][:, position_available_abscissa]
         det = np.linalg.det(covariance_available_abscissa)
-
         max_eigenvalue = None
         min_eigenvalue = None
         eigen_ration = det
@@ -209,20 +194,26 @@ class ShapleyFda:
         else:    
             self.print("\t\tinversa")
             inv_covariance_available_abscissa = np.linalg.inv(covariance_available_abscissa)
-        matrix_mult = np.matmul(covariance_mix, inv_covariance_available_abscissa)
-        conditional_expectation_fn = self.conditional_expectation(
-            mean_1=mean_non_available_abscissa,
-            mean_2=mean_available_abscissa,
-            matrix_mult=matrix_mult
+        ce_var_mult = np.matmul(
+            inv_covariance_available_abscissa.T,
+            covariance_mix.T
         )
-        total_individuals = self.X.shape[0]
-        for i in range(total_individuals):
-            X_i_available_abscissa = np.reshape(
-                self.X[i][position_available_abscissa],
-                newshape=(-1, 1)
-            )
-            conditional_expectation_i = np.ravel(conditional_expectation_fn(X_i_available_abscissa))
-            recomputed_covariate[i][position_non_available_abscissa] = conditional_expectation_i
+        ce_diff = np.subtract(
+            f_available_abscissa,
+            np.matmul(ones_vector, mean_available_abscissa.T)
+        )
+
+        ce_var_data = np.matmul(ce_diff, ce_var_mult)
+
+        ce_mean_matrix = np.matmul(ones_vector, mean_non_available_abscissa.T)
+
+        conditional_expectation = np.add(
+            ce_mean_matrix,
+            ce_var_data
+        )
+        recomputed_covariate = np.empty(shape=self.X.shape)
+        recomputed_covariate[:, position_available_abscissa] = f_available_abscissa
+        recomputed_covariate[:, position_non_available_abscissa] = conditional_expectation
         return recomputed_covariate
 
     def obtain_score(self, covariate, target, predict_fn_list, labels_predict_fns_list):
