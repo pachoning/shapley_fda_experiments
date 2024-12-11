@@ -176,24 +176,7 @@ class ShapleyFda:
         mean_non_available_abscissa = mean_f[position_non_available_abscissa]
         covariance_mix = covariance_f[position_non_available_abscissa, :][:, position_available_abscissa]
         covariance_available_abscissa = covariance_f[position_available_abscissa, :][:, position_available_abscissa]
-        det = np.linalg.det(covariance_available_abscissa)
-        max_eigenvalue = None
-        min_eigenvalue = None
-        eigen_ration = det
-        if covariance_available_abscissa.shape[1] > 0:
-            eigenvalues, eigenvectors = np.linalg.eig(covariance_available_abscissa)
-            max_eigenvalue = np.max(np.abs(eigenvalues))
-            min_eigenvalue = np.min(np.abs(eigenvalues))
-            eigen_ration = min_eigenvalue/max_eigenvalue
-        invertibility = min(det, eigen_ration)
-        #self.print("\t\tdet_matrix", det_matrix)
-        self.print("\t\tmax min", max_eigenvalue, min_eigenvalue)
-        if invertibility < 1e-100:
-            self.print("\t\tpseudo inversa!!!!")
-            inv_covariance_available_abscissa = np.linalg.pinv(covariance_available_abscissa)
-        else:    
-            self.print("\t\tinversa")
-            inv_covariance_available_abscissa = np.linalg.inv(covariance_available_abscissa)
+        inv_covariance_available_abscissa = np.linalg.pinv(covariance_available_abscissa, hermitian=True)
         ce_var_mult = np.matmul(
             inv_covariance_available_abscissa.T,
             covariance_mix.T
@@ -274,6 +257,7 @@ class ShapleyFda:
                     mean_f,
                     covariance_f
                 )
+                #covariate_recreated = self.X.copy()
                 # Compute the score
                 shapley_score = self.obtain_score(
                     covariate_recreated,
@@ -425,6 +409,7 @@ class ShapleyFda:
             dtype="float32",
         )
         target = self.target
+        delta_t = (self.domain_range[1] - self.domain_range[0])/len(mapping_abscissa_interval)
         if len(target.shape) < 2:
             target = np.reshape(target, newshape=(-1, 1))
         for i_interval in range(total_intervals):
@@ -449,10 +434,11 @@ class ShapleyFda:
                     f_j = f_current_abscissa[j_ind, :]
                     target_j = np.squeeze(target[j_ind, :])
                     diff_covariate_ij = np.subtract(f_i, f_j)
-                    distance_covariate_ij = self.compute_l2_norm(
-                        abscissa_points=current_abscissa,
-                        X=diff_covariate_ij,
-                    )
+                    #distance_covariate_ij = self.compute_l2_norm(
+                    #    abscissa_points=current_abscissa,
+                    #    X=diff_covariate_ij,
+                    #)
+                    distance_covariate_ij = delta_t * np.sum(np.power(diff_covariate_ij, 2))
                     distance_matrix_covariate[i_ind, j_ind] = distance_covariate_ij
                     distance_matrix_covariate[j_ind, i_ind] = distance_covariate_ij
                     # Fill in the target only once
@@ -760,7 +746,6 @@ class ShapleyFda:
         dist_covariance_yy = None
         dict_distance_diff_covariable = dict()
         H_matrix = None
-
         if compute_mrmr_distance_correlation:
             dict_distance_diff_covariable, distance_diff_target = self.compute_distance_difference(
                 intervals=set_intervals,
@@ -775,7 +760,6 @@ class ShapleyFda:
                 X1=distance_target_centered,
                 X2=distance_target_centered,
             )
-
         # For each interval, compute the relevance
         for i_interval in range(num_intervals):
             interval = set_intervals[i_interval]
