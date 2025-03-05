@@ -21,6 +21,8 @@ dependencies = [
     "numpy",
     "scikit-fda",
     "tensorflow",
+    "matplotlib",
+    "seaborn",
 ]
 
 [tool.setuptools]
@@ -32,8 +34,6 @@ packages = [
     "notebooks",
     "shapley",
     "utils",
-    "matplotlib",
-    "seaborn",
 ]
 py-modules = ["__init__"]
 include-package-data = true
