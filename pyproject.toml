@@ -32,7 +32,8 @@ packages = [
     "notebooks",
     "shapley",
     "utils",
-    "matplotlib"
+    "matplotlib",
+    "seaborn",
 ]
 py-modules = ["__init__"]
 include-package-data = true
