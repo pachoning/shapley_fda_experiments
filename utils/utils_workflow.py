@@ -83,10 +83,12 @@ def plot_shapley_function(
     plot_h_line=True,
     plot_v_line=True,
     display_legend=True,
+    disregard_feature_selection=False,
 ):
     # Dividir por el ancho de cada intervalo de la particion
     # Equivalentea a multiplicar por el nmero de intervalos y dividir 
     # por el ancho del intervalo grande (domain_range)
+    feature_selection_keys = ["mRMR_distance_correlation", "mRMR_r2"]
     first_abscissa = domain_range[0]
     last_abscissa = domain_range[1]
     range_val = last_abscissa - first_abscissa
@@ -107,8 +109,9 @@ def plot_shapley_function(
             else:
                 new_obj[key] = obj[key]
         else:
-            new_key = translation_dict[key]
-            new_obj[new_key] = obj[key]
+            if (disregard_feature_selection and not key in feature_selection_keys) or not disregard_feature_selection:
+                new_key = translation_dict[key]
+                new_obj[new_key] = obj[key]
     # Prepare the data to be plotted
     n_functions = len(new_obj.keys()) - len(main_keys)
     colors_code = np.array([
@@ -177,11 +180,13 @@ def plot_shapley_value(
         display_legend=True,
         display_legend_below=True,
         display_legend_top=False,
+        disregard_feature_selection=False,
     ):
     # First, we change the name of the keys
     # Round to 4 decimals the middle_points and rename the keys
     # To be deleted
     lgd = None
+    feature_selection_keys = ["mRMR_distance_correlation", "mRMR_r2"]
     first_abscissa = domain_range[0]
     last_abscissa = domain_range[1]
     range_val = last_abscissa - first_abscissa
@@ -198,8 +203,9 @@ def plot_shapley_value(
             else:
                 new_obj[key] = obj[key]
         else:
-            new_key = translation_dict[key]
-            new_obj[new_key] = obj[key]
+            if (disregard_feature_selection and not key in feature_selection_keys) or not disregard_feature_selection:
+                    new_key = translation_dict[key]
+                    new_obj[new_key] = obj[key]
 
     # Prepare the data to be plotted
     n_functions = len(new_obj.keys()) - len(main_keys)
