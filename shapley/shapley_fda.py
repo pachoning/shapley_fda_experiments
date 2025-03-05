@@ -787,5 +787,5 @@ class ShapleyFda:
             for key, value in relevance.items():
                 results[key].append(value)
         self.shapley_values = results.copy()
-        results["execution_time"] = time.time() - initial_time
+        #results["execution_time"] = time.time() - initial_time
         return results
