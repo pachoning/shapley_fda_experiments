@@ -93,7 +93,7 @@ class ShapleyFda:
             raise ValueError("num_permutations can no be greater than the factorial of number of intervals")
         # Iterate to get half of the permutations
         i_seed = 10
-        while total_set_permutations < num_permutations//2:
+        while total_set_permutations < num_permutations:
             if seed:
                 np.random.seed(seed + i_seed)
             permutation = np.random.choice(a=num_intervals, size=num_intervals, replace=False)
@@ -787,5 +787,5 @@ class ShapleyFda:
             for key, value in relevance.items():
                 results[key].append(value)
         self.shapley_values = results.copy()
-        #results["execution_time"] = time.time() - initial_time
+        results["execution_time"] = time.time() - initial_time
         return results
