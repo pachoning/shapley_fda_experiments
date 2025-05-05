@@ -180,6 +180,7 @@ def plot_shapley_value(
         display_legend=True,
         display_legend_below=True,
         display_legend_top=False,
+        display_legend_lower_left=False,
         disregard_feature_selection=False,
     ):
     # First, we change the name of the keys
@@ -210,8 +211,8 @@ def plot_shapley_value(
     # Prepare the data to be plotted
     n_functions = len(new_obj.keys()) - len(main_keys)
     colors_code = np.array([
-        [255, 0, 0],
         [0, 255, 0],
+        [255, 0, 0],
         [0, 0, 255],
         [0, 0, 0],
         [218, 112, 214],
@@ -224,6 +225,9 @@ def plot_shapley_value(
     else:
         cmap = plt.cm.tab20
     colors = cmap.colors
+    linestyle_list = ["-", "--", ":"]
+    if len(linestyle_list) < n_functions:
+        linestyle_list = linestyle_list + (n_functions - len(linestyle_list)) * ["-"]
 
     new_obj_keys = new_obj.keys()
     max_value = -np.inf
@@ -247,6 +251,7 @@ def plot_shapley_value(
             plt.plot(
                 x_points,
                 factor * current_data_mod,
+                linestyle=linestyle_list[i],
                 color=colors[i],
                 linewidth=3.0,
             )
@@ -261,6 +266,7 @@ def plot_shapley_value(
                 fancybox=True,
                 shadow=True,
                 ncol=len(new_obj_keys),
+                marker = [x for x in linestyle_list[:n_functions]],
             )
         elif display_legend_top:
             plt.legend(
@@ -272,6 +278,17 @@ def plot_shapley_value(
                 shadow=True,
                 frameon=False,
                 ncol=len(new_obj_keys),
+            )
+        elif display_legend_lower_left:
+            plt.legend(
+                handles=[Line2D([], [], color=col, lw=2.5, linestyle=mk) for col, mk in zip(colors, linestyle_list[:n_functions])],
+                labels=function_names,
+                loc='lower left',
+                #bbox_to_anchor=(0.5, 1.1),
+                fancybox=True,
+                shadow=True,
+                frameon=False,
+                ncol=1,
             )
         else:
             plt.legend(
