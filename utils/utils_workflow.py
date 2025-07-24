@@ -289,6 +289,7 @@ def plot_shapley_value(
                 shadow=True,
                 frameon=False,
                 ncol=1,
+                prop={'size': 20},  # Increase the font size of the legend
             )
         else:
             plt.legend(
